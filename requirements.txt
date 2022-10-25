@@ -1,0 +1,3 @@
+surveydata~=0.1.3
+pandas~=1.3.5
+setuptools~=60.2.0
