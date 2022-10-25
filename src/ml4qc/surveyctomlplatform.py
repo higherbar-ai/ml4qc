@@ -14,7 +14,6 @@
 
 """Extended version of the surveydata.SurveyCTOPlatform class for ML-based quality control."""
 
-from surveydata.surveyplatform import SurveyPlatform
 from surveydata.surveyctoplatform import SurveyCTOPlatform
 from surveydata.storagesystem import StorageSystem
 import pandas as pd
@@ -43,7 +42,7 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         """
 
         # call parent class version
-        super().__init__()
+        super().__init__(server, username, password, formid, private_key)
 
     def sync_data(self, storage: StorageSystem, attachment_storage: StorageSystem = None,
                   no_attachments: bool = False) -> list:
@@ -94,7 +93,6 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
 
         Pass either a single location_string or a Series of location_strings.
         """
-
 
         # call parent class version
         return super().get_text_audit_df(storage, location_string, location_strings)
