@@ -75,46 +75,61 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         # call parent class version
         return super().sync_data(storage, attachment_storage, no_attachments, review_statuses)
 
-    def review_submissions(self, submission_reviews: list):
+    def update_submissions(self, submission_updates: list):
         """
-        Submit one or more submission reviews.
+        Submit one or more submission updates, including reviews, classifications, and/or comments.
 
-        :param submission_reviews: List of dictionaries with one per review; each should include values for
-            "submissionID", "reviewStatus" ("none", "approved", or "rejected"), "qualityClassification" ("good",
-            "okay", "poor", or "fake"), and, optionally, "comment" (custom text)
-        :type submission_reviews: list
+        :param submission_updates: List of dictionaries with one per update; each should include values for
+            "submissionID"; "reviewStatus" ("none", "approved", or "rejected"); "qualityClassification" ("good",
+            "okay", "poor", or "fake"); and/or "comment" (custom text)
+        :type submission_updates: list
 
         Warning: this method uses an undocumented SurveyCTO API that may break in future SurveyCTO releases.
         """
 
-        # assemble review bundle from passed reviews
+        # assemble review bundle from passed updates
         review_bundle = []
         timestamp = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
-        for review in submission_reviews:
-            # first confirm that review looks valid
-            if "submissionID" not in review or not review["submissionID"]:
-                raise ValueError("Must supply submissionID value within each review dict.")
-            if "reviewStatus" not in review or not review["reviewStatus"] \
-                    or not review["reviewStatus"] in self.REVIEW_STATUS_VALUE:
-                raise ValueError("Must supply valid reviewStatus within each review dict.")
-            if "qualityClassification" not in review or not review["qualityClassification"] \
-                    or not review["qualityClassification"] in self.QUALITY_VALUE:
-                raise ValueError("Must supply valid qualityClassification within each review dict.")
-
-            # build comments list (automated comment plus optional custom comment)
-            comment_text = f"[ Submission {self.REVIEW_STATUS_LABEL[review['reviewStatus']]}. " \
-                           f"Classified as {self.QUALITY_LABEL[review['qualityClassification']]}. ]"
-            comments = [{"text": comment_text, "type": "SYSTEM", "creationDate": timestamp}]
-            if "comment" in review and review["comment"]:
-                comments.append({"text": review['comment'], "type": "SYSTEM", "creationDate": timestamp})
+        for update in submission_updates:
+            # first confirm that update looks valid
+            has_valid_subid = ("submissionID" in update and update["submissionID"])
+            has_valid_review_status = ("reviewStatus" in update and update["reviewStatus"]
+                                       and update["reviewStatus"] in self.REVIEW_STATUS_VALUE)
+            has_valid_quality = ("qualityClassification" in update and update["qualityClassification"]
+                                 and update["qualityClassification"] in self.QUALITY_VALUE)
+            has_valid_comment = ("comment" in update and update["comment"])
+            if not has_valid_subid:
+                raise ValueError("Must supply submissionID value within each update dict.")
+            if not has_valid_review_status and not has_valid_quality and not has_valid_comment:
+                raise ValueError("Each update dict must include at least a valid reviewStatus, qualityClassification, "
+                                 "or comment.")
+            if "reviewStatus" in update and not has_valid_review_status:
+                raise ValueError("Invalid reviewStatus included in update dict: " + update["reviewStatus"])
+            if "qualityClassification" in update and not has_valid_quality:
+                raise ValueError("Invalid qualityClassification included in update dict: "
+                                 + update["qualityClassification"])
 
             # build xReview dictionary
-            xreview = {
-                "instanceId": review["submissionID"],
-                "classTagUpdate": self.QUALITY_VALUE[review["qualityClassification"]],
-                "statusUpdate": self.REVIEW_STATUS_VALUE[review["reviewStatus"]],
-                "comments": comments
-            }
+            xreview = {"instanceId": update["submissionID"]}
+            comments = []
+            if "comment" in update and update["comment"]:
+                comments.append({"text": update['comment'], "type": "USER", "creationDate": timestamp})
+            if has_valid_review_status and has_valid_quality:
+                xreview["classTagUpdate"] = self.QUALITY_VALUE[update["qualityClassification"]]
+                xreview["statusUpdate"] = self.REVIEW_STATUS_VALUE[update["reviewStatus"]]
+                comments.append({"text": f"[ Submission {self.REVIEW_STATUS_LABEL[update['reviewStatus']]} via API. "
+                                         f"Classified as {self.QUALITY_LABEL[update['qualityClassification']]}. ]",
+                                 "type": "SYSTEM", "creationDate": timestamp})
+            elif has_valid_review_status:
+                xreview["statusUpdate"] = self.REVIEW_STATUS_VALUE[update["reviewStatus"]]
+                comments.append({"text": f"[ Submission {self.REVIEW_STATUS_LABEL[update['reviewStatus']]} via API. ]",
+                                 "type": "SYSTEM", "creationDate": timestamp})
+            elif has_valid_quality:
+                xreview["classTagUpdate"] = self.QUALITY_VALUE[update["qualityClassification"]]
+                comments.append({"text": f"[ Classified as {self.QUALITY_LABEL[update['qualityClassification']]} "
+                                         f"via API. ]",
+                                 "type": "SYSTEM", "creationDate": timestamp})
+            xreview["comments"] = comments
 
             # add to review bundle
             review_bundle.append({"xReview": xreview, "lastReviewDate": timestamp})
