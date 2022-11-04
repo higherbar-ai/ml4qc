@@ -77,10 +77,10 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
 
     def update_submissions(self, submission_updates: list):
         """
-        Submit one or more submission updates, including review+classifications and/or comments.
+        Submit one or more submission updates, including reviews, classifications, and/or comments.
 
         :param submission_updates: List of dictionaries with one per update; each should include values for
-            "submissionID"; "reviewStatus" ("none", "approved", or "rejected") and "qualityClassification" ("good",
+            "submissionID"; "reviewStatus" ("none", "approved", or "rejected"); "qualityClassification" ("good",
             "okay", "poor", or "fake"); and/or "comment" (custom text)
         :type submission_updates: list
 
@@ -100,9 +100,9 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
             has_valid_comment = ("comment" in update and update["comment"])
             if not has_valid_subid:
                 raise ValueError("Must supply submissionID value within each update dict.")
-            if not ((has_valid_review_status and has_valid_quality) or has_valid_comment):
-                raise ValueError("Each update dict must include at least a valid reviewStatus+qualityClassification "
-                                 "or a comment.")
+            if not has_valid_review_status and not has_valid_quality and not has_valid_comment:
+                raise ValueError("Each update dict must include at least a valid reviewStatus, qualityClassification, "
+                                 "or comment.")
             if "reviewStatus" in update and not has_valid_review_status:
                 raise ValueError("Invalid reviewStatus included in update dict: " + update["reviewStatus"])
             if "qualityClassification" in update and not has_valid_quality:
@@ -113,12 +113,21 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
             xreview = {"instanceId": update["submissionID"]}
             comments = []
             if "comment" in update and update["comment"]:
-                comments.append({"text": update['comment'], "type": "SYSTEM", "creationDate": timestamp})
+                comments.append({"text": update['comment'], "type": "USER", "creationDate": timestamp})
             if has_valid_review_status and has_valid_quality:
                 xreview["classTagUpdate"] = self.QUALITY_VALUE[update["qualityClassification"]]
                 xreview["statusUpdate"] = self.REVIEW_STATUS_VALUE[update["reviewStatus"]]
-                comments.append({"text": f"[ Submission {self.REVIEW_STATUS_LABEL[update['reviewStatus']]}. "
+                comments.append({"text": f"[ Submission {self.REVIEW_STATUS_LABEL[update['reviewStatus']]} via API. "
                                          f"Classified as {self.QUALITY_LABEL[update['qualityClassification']]}. ]",
+                                 "type": "SYSTEM", "creationDate": timestamp})
+            elif has_valid_review_status:
+                xreview["statusUpdate"] = self.REVIEW_STATUS_VALUE[update["reviewStatus"]]
+                comments.append({"text": f"[ Submission {self.REVIEW_STATUS_LABEL[update['reviewStatus']]} via API. ]",
+                                 "type": "SYSTEM", "creationDate": timestamp})
+            elif has_valid_quality:
+                xreview["classTagUpdate"] = self.QUALITY_VALUE[update["qualityClassification"]]
+                comments.append({"text": f"[ Classified as {self.QUALITY_LABEL[update['qualityClassification']]} "
+                                         f"via API. ]",
                                  "type": "SYSTEM", "creationDate": timestamp})
             xreview["comments"] = comments
 
