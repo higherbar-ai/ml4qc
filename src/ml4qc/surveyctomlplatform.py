@@ -15,8 +15,8 @@
 """Extended version of the surveydata.SurveyCTOPlatform class for ML-based quality control."""
 
 from surveydata.surveyctoplatform import SurveyCTOPlatform
-from surveydata.storagesystem import StorageSystem
 import pandas as pd
+import numpy as np
 import requests
 import datetime
 from urllib.parse import unquote_plus
@@ -53,27 +53,6 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
 
         # call parent class version
         super().__init__(server, username, password, formid, private_key)
-
-    def sync_data(self, storage: StorageSystem, attachment_storage: StorageSystem = None,
-                  no_attachments: bool = False, review_statuses: list = None) -> list:
-        """
-        Sync survey data to storage system.
-
-        :param storage: Storage system for submissions (and attachments, if supported and other options don't override)
-        :type storage: StorageSystem
-        :param attachment_storage: Separate storage system for attachments (only if needed)
-        :type attachment_storage: StorageSystem
-        :param no_attachments: True to not sync attachments
-        :type no_attachments: bool
-        :param review_statuses: List of review statuses to include (any combo of "approved", "pending", "rejected";
-            if not specified, syncs only approved submissions)
-        :type review_statuses: list
-        :return: List of new submissions stored (submission ID strings)
-        :rtype: list
-        """
-
-        # call parent class version
-        return super().sync_data(storage, attachment_storage, no_attachments, review_statuses)
 
     def update_submissions(self, submission_updates: list):
         """
@@ -174,53 +153,117 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         return session, headers
 
     @staticmethod
-    def get_submissions_df(storage: StorageSystem) -> pd.DataFrame:
+    def process_text_audits(ta_df: pd.DataFrame, start_times: pd.Series = None, end_times: pd.Series = None,
+                            data_tz: datetime.timezone = None, collection_tz: datetime.timezone = None) -> pd.DataFrame:
         """
-        Get all submission data from storage, organized into a Pandas DataFrame and optimized based on the platform.
+        Process text audits by summarizing, transforming, and reshaping into a single row per submission.
 
-        :param storage: Storage system for submissions
-        :type storage: StorageSystem
-        :return: Pandas DataFrame containing all submissions currently in storage
-        :rtype: pandas.DataFrame
-        """
-
-        # call parent class version
-        return super(SurveyCTOMLPlatform, SurveyCTOMLPlatform).get_submissions_df(storage)
-
-    @staticmethod
-    def get_text_audit_df(storage: StorageSystem, location_string: str = "",
-                          location_strings: pd.Series = None) -> pd.DataFrame:
-        """
-        Get one or more text audits from storage, organized into a Pandas DataFrame.
-
-        :param storage: Storage system for attachments
-        :type storage: StorageSystem
-        :param location_string: Location string of single text audit to load
-        :type location_string: str
-        :param location_strings: Series of location strings of text audits to load
-        :type location_strings: pandas.Series
-        :return: DataFrame with either the single text audit contents or all text audit contents indexed by Series index
-        :rtype: pandas.DataFrame
-
-        Pass either a single location_string or a Series of location_strings.
+        :param ta_df: DataFrame with raw text audit data, typically from get_text_audit_df()
+        :type ta_df: pd.DataFrame
+        :param start_times: Pandas Series with a starting date and time for each submission (indexed by submission ID)
+        :type start_times: pd.Series
+        :param end_times: Pandas Series with an ending date and time for each submission (indexed by submission ID)
+        :type end_times: pd.Series
+        :param data_tz: Timezone of timestamps in start_times and end_times
+        :type data_tz: datetime.timezone
+        :param collection_tz: Timezone of data collection
+        :type collection_tz: datetime.timezone
+        :return: Pandas DataFrame, indexed by submission ID, with summary details as well as field-by-field visit
+            summaries
+        :rtype: pd.DataFrame
         """
 
-        # call parent class version
-        return super(SurveyCTOMLPlatform, SurveyCTOMLPlatform).get_text_audit_df(storage, location_string,
-                                                                                 location_strings)
+        # start list of dictionaries, one for each submission
+        summaries = []
+        # get list of submission IDs and process each in turn
+        submission_ids = ta_df.index.unique()
+        for subid in submission_ids:
+            # subset out the submission's text audit data
+            sub_ta_df = ta_df.loc[subid, :]
+            # auto-detect text audit type for the submission (eventlog vs. traditional)
+            if "duration_ms" in sub_ta_df.columns.values and sub_ta_df["duration_ms"].sum() > 0:
+                eventlog = True
+                duration_field = "duration_ms"
+                duration_ms = sub_ta_df[duration_field].sum()
+                # take form start and end times from text audit data
+                start_time = sub_ta_df["device_time"].iloc[0]
+                end_time = sub_ta_df["device_time"].iloc[-1]
+                # since device_time includes timezone, we're confident of the collection timezone
+                #   (note, though, that all web submissions are recorded in UTC, which may be misleading)
+                tz_confident = True
+            else:
+                eventlog = False
+                duration_field = "duration_s"
+                duration_ms = sub_ta_df[duration_field].sum() * 1000
+                # take form start and end times from passed-in form data, if available
+                if start_times is not None and subid in start_times and end_times is not None and subid in end_times:
+                    # record times with collection timezone if possible
+                    if data_tz is not None and collection_tz is not None:
+                        start_time = start_times[subid].tz_localize(data_tz).tz_convert(collection_tz)
+                        end_time = end_times[subid].tz_localize(data_tz).tz_convert(collection_tz)
+                        tz_confident = True
+                    else:
+                        start_time = start_times[subid]
+                        end_time = end_times[subid]
+                        tz_confident = False
+                else:
+                    start_time = None
+                    end_time = None
+                    tz_confident = False
 
-    @staticmethod
-    def _load_text_audit(storage: StorageSystem, location_string: str) -> pd.DataFrame:
-        """
-        Load a single text audit file from storage to a Pandas DataFrame.
+            # populate a new dictionary for the current submission
+            summary = {SurveyCTOPlatform.ID_FIELD: subid,
+                       "ta_duration_total": duration_ms,
+                       "ta_duration_mean": sub_ta_df[duration_field].mean() * 1000 if not eventlog
+                       else sub_ta_df[duration_field].mean(),
+                       "ta_duration_sd": sub_ta_df[duration_field].std() * 1000 if not eventlog
+                       else sub_ta_df[duration_field].std(),
+                       "ta_duration_max": sub_ta_df[duration_field].max() * 1000 if not eventlog
+                       else sub_ta_df[duration_field].max(),
+                       "ta_time_in_fields": np.NaN if start_time is None
+                       else (duration_ms / 1000) / (end_time - start_time).seconds,
+                       "ta_fields": sub_ta_df["field"].nunique(),
+                       "ta_sessions": 1 if not eventlog else 1 + len(sub_ta_df[sub_ta_df["event"] == "Reopen form"]),
+                       "ta_pct_revisits": 0 if not eventlog else 1 - (sub_ta_df["field"].nunique() /
+                                                                      len(sub_ta_df[sub_ta_df["event"]
+                                                                                    == "Visit field"])),
+                       "ta_start_dayofweek": np.NaN if not tz_confident else start_time.weekday(),
+                       "ta_start_hourofday": np.NaN if not tz_confident else start_time.hour}
 
-        :param storage: Storage system for attachments
-        :type storage: StorageSystem
-        :param location_string: Location string of single text audit to load
-        :type location_string: str
-        :return: DataFrame with the single text audit contents
-        :rtype: pandas.DataFrame
-        """
+            for field in sub_ta_df["field"].dropna().unique():
+                # strip+escape fieldname to create a version for DataFrame column names
+                df_fieldname = field.strip().replace(' ', '_').replace('[', '').replace(']', '')
 
-        # call parent class version
-        return super(SurveyCTOMLPlatform, SurveyCTOMLPlatform)._load_text_audit(storage, location_string)
+                # subset down to text audit records for this field
+                field_df = sub_ta_df[sub_ta_df["field"] == field]
+
+                # populate field-specific summary columns
+                summary[f"ta_field_{df_fieldname}_visited"] = 1
+                for index in range(len(field_df)):
+                    row = field_df.iloc[index]
+                    if eventlog:
+                        summary[f"ta_field_{df_fieldname}_visit_{index + 1}_start"] = \
+                            row["form_time_ms"] / duration_ms
+                        summary[f"ta_field_{df_fieldname}_visit_{index + 1}_duration"] = \
+                            row[duration_field] / duration_ms
+                    else:
+                        summary[f"ta_field_{df_fieldname}_visit_{index + 1}_start"] = \
+                            (row["visited_s"] * 1000) / duration_ms
+                        summary[f"ta_field_{df_fieldname}_visit_{index + 1}_duration"] = \
+                            (row[duration_field] * 1000) / duration_ms
+
+            # add the current submission to the list of summaries
+            summaries += [summary]
+
+        # convert to DataFrame
+        summary_df = pd.DataFrame(summaries)
+        # set to index by KEY
+        summary_df.set_index([SurveyCTOPlatform.ID_FIELD], inplace=True)
+        summary_df = summary_df.sort_index()
+
+        # set missing field-specific cells to 0
+        for col in summary_df.columns:
+            if col.startswith("ta_field_"):
+                summary_df[col].fillna(0, inplace=True)
+
+        return summary_df
