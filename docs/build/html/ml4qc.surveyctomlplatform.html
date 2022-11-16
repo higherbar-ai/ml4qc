@@ -102,72 +102,60 @@
 </ul>
 </dd>
 </dl>
-<dl class="simple">
-<dt>If you’re not going to call sync_data() or review_submissions(), you don’t need to supply any of the parameters</dt><dd><p>to this constructor.</p>
-</dd>
-</dl>
+<p>If you’re not going to call sync_data() or review_submissions(), you don’t need to supply any of the parameters
+to this constructor.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.get_submissions_df">
-<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_submissions_df</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">storage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">StorageSystem</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.get_submissions_df" title="Permalink to this definition"></a></dt>
-<dd><p>Get all submission data from storage, organized into a Pandas DataFrame and optimized based on the platform.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>storage</strong> (<em>StorageSystem</em>) – Storage system for submissions</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>Pandas DataFrame containing all submissions currently in storage</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>pandas.DataFrame</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.get_text_audit_df">
-<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">get_text_audit_df</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">storage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">StorageSystem</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location_string</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">location_strings</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Series</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.get_text_audit_df" title="Permalink to this definition"></a></dt>
-<dd><p>Get one or more text audits from storage, organized into a Pandas DataFrame.</p>
+<dt class="sig sig-object py" id="ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.process_text_audits">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">process_text_audits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ta_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_times</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Series</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_times</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">Series</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_tz</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">timezone</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">collection_tz</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">timezone</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.process_text_audits" title="Permalink to this definition"></a></dt>
+<dd><p>Process text audits by summarizing, transforming, and reshaping into a single row per submission.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>storage</strong> (<em>StorageSystem</em>) – Storage system for attachments</p></li>
-<li><p><strong>location_string</strong> (<em>str</em>) – Location string of single text audit to load</p></li>
-<li><p><strong>location_strings</strong> (<em>pandas.Series</em>) – Series of location strings of text audits to load</p></li>
+<li><p><strong>ta_df</strong> (<em>pd.DataFrame</em>) – DataFrame with raw text audit data, typically from get_text_audit_df()</p></li>
+<li><p><strong>start_times</strong> (<em>pd.Series</em>) – Pandas Series with a starting date and time for each submission (indexed by submission ID)</p></li>
+<li><p><strong>end_times</strong> (<em>pd.Series</em>) – Pandas Series with an ending date and time for each submission (indexed by submission ID)</p></li>
+<li><p><strong>data_tz</strong> (<em>datetime.timezone</em>) – Timezone of timestamps in start_times and end_times</p></li>
+<li><p><strong>collection_tz</strong> (<em>datetime.timezone</em>) – Timezone of data collection</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>
-<dd class="field-even"><p>DataFrame with either the single text audit contents or all text audit contents indexed by Series index</p>
+<dd class="field-even"><p>Pandas DataFrame, indexed by submission ID, with summary details as well as field-by-field visit
+summaries</p>
 </dd>
 <dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>pandas.DataFrame</p>
+<dd class="field-odd"><p>pd.DataFrame</p>
 </dd>
 </dl>
-<p>Pass either a single location_string or a Series of location_strings.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt class="sig sig-object py" id="ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.sync_data">
-<span class="sig-name descname"><span class="pre">sync_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">storage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">StorageSystem</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">attachment_storage</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">StorageSystem</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">no_attachments</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">review_statuses</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">list</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span></span></span><a class="headerlink" href="#ml4qc.surveyctomlplatform.SurveyCTOMLPlatform.sync_data" title="Permalink to this definition"></a></dt>
-<dd><p>Sync survey data to storage system.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>storage</strong> (<em>StorageSystem</em>) – Storage system for submissions (and attachments, if supported and other options don’t override)</p></li>
-<li><p><strong>attachment_storage</strong> (<em>StorageSystem</em>) – Separate storage system for attachments (only if needed)</p></li>
-<li><p><strong>no_attachments</strong> (<em>bool</em>) – True to not sync attachments</p></li>
-<li><p><strong>review_statuses</strong> (<em>list</em>) – List of review statuses to include (any combo of “approved”, “pending”, “rejected”;
-if not specified, syncs only approved submissions)</p></li>
+<p>The returned DataFrame is indexed by submission ID and includes the following columns:</p>
+<ul class="simple">
+<li><p><strong>ta_duration_total</strong> - Total duration spent in form fields (ms); feature engineering recommendation: divide
+by max to rescale to 0-1</p></li>
+<li><p><strong>ta_duration_mean</strong> - Mean duration spent in form fields (ms); feature engineering recommendation: divide by
+max to rescale to 0-1</p></li>
+<li><p><strong>ta_duration_sd</strong> - Standard deviation of duration spent in form fields (ms); feature engineering
+recommendation: divide by max to rescale to 0-1</p></li>
+<li><p><strong>ta_duration_max</strong> - Max duration spent in form fields (ms); feature engineering recommendation: divide by
+max to rescale to 0-1</p></li>
+<li><p><strong>ta_fields</strong> - Number of fields visited; feature engineering recommendation: divide by max to rescale to 0-1</p></li>
+<li><p><strong>ta_time_in_fields</strong> - Percent of overall calendar time spent in fields; feature engineering recommendation:
+leave as 0-1 scale</p></li>
+<li><p><strong>ta_sessions</strong> - Number of form-filling sessions (always 1 unless eventlog-level text audit data); feature
+engineering recommendation: divide by max to rescale to 0-1</p></li>
+<li><p><strong>ta_pct_revisits</strong> - Percent of field visits that are revisits (always 0 unless eventlog-level text audit
+data); feature engineering recommendation: leave as 0-1 scale</p></li>
+<li><p><strong>ta_start_dayofweek</strong> - Day of week submission started (0 for Sunday, only available if eventlog text audit
+data or timezone information supplied); feature engineering recommendation: one-hot encode</p></li>
+<li><p><strong>ta_start_hourofday</strong> - Hour of day submission started (only available if eventlog text audit data or
+timezone information supplied); feature engineering recommendation: one-hot encode</p></li>
+<li><p><strong>ta_field_x_visited</strong> - 1 if field x visited, otherwise 0; feature engineering recommendation: leave as 0-1
+scale, fill missing with 0</p></li>
+<li><p><strong>ta_field_x_visit_y_start</strong> - When field x was visited the yth time divided by the highest field start time,
+otherwise 0; feature engineering recommendation: leave as 0-1 scale, fill missing with 0</p></li>
+<li><p><strong>ta_field_x_visit_y_duration</strong> - Time spent on field x the yth time it was visited divided by the highest
+field duration, otherwise 0; feature engineering recommendation: leave as 0-1 scale, fill missing with 0</p></li>
 </ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>List of new submissions stored (submission ID strings)</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p>list</p>
-</dd>
-</dl>
 </dd></dl>
 
 <dl class="py method">
