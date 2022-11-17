@@ -48,7 +48,7 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         :type private_key: str
 
         If you're not going to call sync_data() or review_submissions(), you don't need to supply any of the parameters
-            to this constructor.
+        to this constructor.
         """
 
         # call parent class version
@@ -171,6 +171,34 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         :return: Pandas DataFrame, indexed by submission ID, with summary details as well as field-by-field visit
             summaries
         :rtype: pd.DataFrame
+
+        The returned DataFrame is indexed by submission ID and includes the following columns:
+
+        * **ta_duration_total** - Total duration spent in form fields (ms); feature engineering recommendation: divide
+          by max to rescale to 0-1
+        * **ta_duration_mean** - Mean duration spent in form fields (ms); feature engineering recommendation: divide by
+          max to rescale to 0-1
+        * **ta_duration_sd** - Standard deviation of duration spent in form fields (ms); feature engineering
+          recommendation: divide by max to rescale to 0-1
+        * **ta_duration_max** - Max duration spent in form fields (ms); feature engineering recommendation: divide by
+          max to rescale to 0-1
+        * **ta_fields** - Number of fields visited; feature engineering recommendation: divide by max to rescale to 0-1
+        * **ta_time_in_fields** - Percent of overall calendar time spent in fields; feature engineering recommendation:
+          leave as 0-1 scale
+        * **ta_sessions** - Number of form-filling sessions (always 1 unless eventlog-level text audit data); feature
+          engineering recommendation: divide by max to rescale to 0-1
+        * **ta_pct_revisits** - Percent of field visits that are revisits (always 0 unless eventlog-level text audit
+          data); feature engineering recommendation: leave as 0-1 scale
+        * **ta_start_dayofweek** - Day of week submission started (0 for Sunday, only available if eventlog text audit
+          data or timezone information supplied); feature engineering recommendation: one-hot encode
+        * **ta_start_hourofday** - Hour of day submission started (only available if eventlog text audit data or
+          timezone information supplied); feature engineering recommendation: one-hot encode
+        * **ta_field_x_visited** - 1 if field x visited, otherwise 0; feature engineering recommendation: leave as 0-1
+          scale, fill missing with 0
+        * **ta_field_x_visit_y_start** - When field x was visited the yth time divided by the highest field start time,
+          otherwise 0; feature engineering recommendation: leave as 0-1 scale, fill missing with 0
+        * **ta_field_x_visit_y_duration** - Time spent on field x the yth time it was visited divided by the highest
+          field duration, otherwise 0; feature engineering recommendation: leave as 0-1 scale, fill missing with 0
         """
 
         # start list of dictionaries, one for each submission
@@ -227,12 +255,18 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
                        "ta_pct_revisits": 0 if not eventlog else 1 - (sub_ta_df["field"].nunique() /
                                                                       len(sub_ta_df[sub_ta_df["event"]
                                                                                     == "Visit field"])),
-                       "ta_start_dayofweek": np.NaN if not tz_confident else start_time.weekday(),
-                       "ta_start_hourofday": np.NaN if not tz_confident else start_time.hour}
+                       "ta_start_dayofweek": "" if not tz_confident else str(start_time.weekday()),
+                       "ta_start_hourofday": "" if not tz_confident else str(start_time.hour)}
+
+            # if there are no durations for a submission, fill missing values with 0.0
+            if pd.isna(summary["ta_duration_mean"]):
+                summary["ta_duration_mean"] = 0.0
+                summary["ta_duration_sd"] = 0.0
+                summary["ta_duration_max"] = 0.0
 
             for field in sub_ta_df["field"].dropna().unique():
                 # strip+escape fieldname to create a version for DataFrame column names
-                df_fieldname = field.strip().replace(' ', '_').replace('[', '').replace(']', '')
+                df_fieldname = field.strip().replace(' ', '_').replace('[', '_').replace(']', '').replace('/', '_')
 
                 # subset down to text audit records for this field
                 field_df = sub_ta_df[sub_ta_df["field"] == field]
@@ -243,14 +277,14 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
                     row = field_df.iloc[index]
                     if eventlog:
                         summary[f"ta_field_{df_fieldname}_visit_{index + 1}_start"] = \
-                            row["form_time_ms"] / duration_ms
+                            row["form_time_ms"] / sub_ta_df["form_time_ms"].max()
                         summary[f"ta_field_{df_fieldname}_visit_{index + 1}_duration"] = \
-                            row[duration_field] / duration_ms
+                            row[duration_field] / summary["ta_duration_max"]
                     else:
                         summary[f"ta_field_{df_fieldname}_visit_{index + 1}_start"] = \
-                            (row["visited_s"] * 1000) / duration_ms
+                            row["visited_s"] / sub_ta_df["visited_s"].max()
                         summary[f"ta_field_{df_fieldname}_visit_{index + 1}_duration"] = \
-                            (row[duration_field] * 1000) / duration_ms
+                            (row[duration_field] * 1000) / summary["ta_duration_max"]
 
             # add the current submission to the list of summaries
             summaries += [summary]
@@ -265,5 +299,8 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         for col in summary_df.columns:
             if col.startswith("ta_field_"):
                 summary_df[col].fillna(0, inplace=True)
+
+        # ensure that DataFrame columns have appropriate data types
+        summary_df = summary_df.convert_dtypes()
 
         return summary_df
