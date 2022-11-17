@@ -255,8 +255,14 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
                        "ta_pct_revisits": 0 if not eventlog else 1 - (sub_ta_df["field"].nunique() /
                                                                       len(sub_ta_df[sub_ta_df["event"]
                                                                                     == "Visit field"])),
-                       "ta_start_dayofweek": np.NaN if not tz_confident else start_time.weekday(),
-                       "ta_start_hourofday": np.NaN if not tz_confident else start_time.hour}
+                       "ta_start_dayofweek": "" if not tz_confident else str(start_time.weekday()),
+                       "ta_start_hourofday": "" if not tz_confident else str(start_time.hour)}
+
+            # if there are no durations for a submission, fill missing values with 0.0
+            if pd.isna(summary["ta_duration_mean"]):
+                summary["ta_duration_mean"] = 0.0
+                summary["ta_duration_sd"] = 0.0
+                summary["ta_duration_max"] = 0.0
 
             for field in sub_ta_df["field"].dropna().unique():
                 # strip+escape fieldname to create a version for DataFrame column names
@@ -293,5 +299,8 @@ class SurveyCTOMLPlatform(SurveyCTOPlatform):
         for col in summary_df.columns:
             if col.startswith("ta_field_"):
                 summary_df[col].fillna(0, inplace=True)
+
+        # ensure that DataFrame columns have appropriate data types
+        summary_df = summary_df.convert_dtypes()
 
         return summary_df

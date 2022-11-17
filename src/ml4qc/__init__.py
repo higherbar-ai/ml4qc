@@ -12,6 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+from .surveymltools import SurveyMLTools
+from .surveyctomlplatform import SurveyCTOMLPlatform
+
 # report our current version, as installed
 from importlib_metadata import version
 try:
