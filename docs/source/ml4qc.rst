@@ -7,7 +7,8 @@ Submodules
 .. toctree::
    :maxdepth: 4
 
-   ml4qc.surveyctomlplatform
+   ml4qc.surveyml
+   ml4qc.surveymlclassifier
 
 Module contents
 ---------------
