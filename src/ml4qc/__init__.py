@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 from .surveyml import SurveyML
+from .surveymlclassifier import SurveyMLClassifier
 
 # report our current version, as installed
 from importlib_metadata import version

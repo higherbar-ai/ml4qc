@@ -4,3 +4,5 @@ setuptools~=60.2.0
 requests~=2.28.1
 numpy>=1.22
 scikit-learn~=1.0.2
+seaborn~=0.12.1
+matplotlib~=3.6.2

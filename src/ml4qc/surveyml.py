@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-"""Tools for using machine learning techniques on survey data."""
+"""Base module for using machine learning techniques on survey data."""
 
 from typing import Union
 import numpy as np
@@ -81,6 +81,8 @@ class SurveyML(object):
         self.y_train_preprocessed = None
         self.x_predict_preprocessed = None
         self.y_predict_preprocessed = None
+        self.num_features = 0
+        self.feature_names_preprocessed = None
 
         # organize features by data type
         self.features_by_type = self.columns_by_type(self.x_train_df)
@@ -102,8 +104,10 @@ class SurveyML(object):
         :type custom_pipeline: Pipeline
         """
 
+        # set up preprocessing pipeline
         if custom_pipeline is not None:
             self.preprocessing_pipeline = custom_pipeline
+            transformer = None
         else:
             if pca is not None:
                 # for dimensionality reduction: one-hot encode any categorical data, then scale everything
@@ -131,6 +135,7 @@ class SurveyML(object):
             print(f"  Starting training set shape: {self.x_train_df.shape}")
             print(f"Starting prediction set shape: {self.x_predict_df.shape}")
 
+        # perform preprocessing
         self.x_train_preprocessed = self.preprocessing_pipeline.fit_transform(self.x_train_df)
         self.y_train_preprocessed = self.y_train_df.values.ravel()
         self.x_predict_preprocessed = self.preprocessing_pipeline.transform(self.x_predict_df)
@@ -138,6 +143,14 @@ class SurveyML(object):
             self.y_predict_preprocessed = None
         else:
             self.y_predict_preprocessed = self.y_predict_df.values.ravel()
+
+        # record final feature count, and names if we can
+        self.num_features = self.x_train_preprocessed.shape[1]
+        if pca is None and transformer is not None:
+            self.feature_names_preprocessed = transformer.get_feature_names_out()
+        else:
+            # no feature names available if using PCA to reduce dimensions
+            self.feature_names_preprocessed = None
 
         if self.verbose:
             print(f"     Final training set shape: {self.x_train_preprocessed.shape}")

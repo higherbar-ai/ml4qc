@@ -8,6 +8,7 @@ Submodules
    :maxdepth: 4
 
    ml4qc.surveyml
+   ml4qc.surveymlclassifier
 
 Module contents
 ---------------
