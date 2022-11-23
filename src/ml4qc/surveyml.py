@@ -18,14 +18,8 @@ from typing import Union
 import numpy as np
 from numpy.random import RandomState
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import sklearn as skl
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.ensemble import IsolationForest
 
 
 class SurveyML(object):
@@ -62,8 +56,9 @@ class SurveyML(object):
         if x_predict_df is None:
             # split training set into training and test sets
             self.x_train_df, self.x_predict_df, \
-                self.y_train_df, self.y_predict_df = train_test_split(x_train_df, y_train_df,
-                                                                      test_size=test_size, random_state=random_state)
+                self.y_train_df, self.y_predict_df = skl.model_selection.train_test_split(x_train_df, y_train_df,
+                                                                                          test_size=test_size,
+                                                                                          random_state=random_state)
         else:
             self.x_train_df = x_train_df
             self.y_train_df = y_train_df
@@ -111,21 +106,22 @@ class SurveyML(object):
         else:
             if pca is not None:
                 # for dimensionality reduction: one-hot encode any categorical data, then scale everything
-                transformer = ColumnTransformer(
-                    [('categorical', OneHotEncoder(handle_unknown='ignore'), self.features_by_type["other"])],
-                    remainder='passthrough')
+                transformer = skl.compose.ColumnTransformer(
+                    [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                      self.features_by_type["other"])], remainder='passthrough')
                 self.preprocessing_pipeline = Pipeline(steps=[
                     ('transform', transformer),
-                    ('scale', StandardScaler()),
-                    ('reduce', PCA(n_components=0.9, svd_solver="full", random_state=self.random_state))
+                    ('scale', skl.preprocessing.StandardScaler()),
+                    ('reduce', skl.decomposition.PCA(n_components=0.9, svd_solver="full",
+                                                     random_state=self.random_state))
                 ])
             else:
                 # for direct use: leave binary and unit-interval data as-is, rescale other numeric data,
                 #                 one-hot encode categorical data
-                transformer = ColumnTransformer(
-                    [('numeric_other', MinMaxScaler(), self.features_by_type["numeric_other"]),
-                     ('categorical', OneHotEncoder(handle_unknown='ignore'), self.features_by_type["other"])],
-                    remainder='passthrough')
+                transformer = skl.compose.ColumnTransformer(
+                    [('numeric_other', skl.preprocessing.MinMaxScaler(), self.features_by_type["numeric_other"]),
+                     ('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                      self.features_by_type["other"])], remainder='passthrough')
 
                 self.preprocessing_pipeline = Pipeline(steps=[
                     ('transform', transformer)
@@ -162,22 +158,25 @@ class SurveyML(object):
 
         :param contamination: Proportion (0,1) of dataset that should be considered an outlier, or None for auto
         :type contamination: float
-        :return: DataFrame with an is_outlier column that is True for for outliers and False otherwise
+        :return: DataFrame with an is_outlier column that is True for outliers and False otherwise
         :rtype: pd.DataFrame
         """
 
         # pool all data, one-hot encode categorical data, otherwise leave everything alone/unscaled
         x_all_df = pd.concat([self.x_train_df, self.x_predict_df])
-        transformer = ColumnTransformer(
-            [('categorical', OneHotEncoder(handle_unknown='ignore'), self.features_by_type["other"])],
-            remainder='passthrough')
+        transformer = skl.compose.ColumnTransformer(
+            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+              self.features_by_type["other"])], remainder='passthrough')
         x_all = transformer.fit_transform(x_all_df)
 
         # identify outliers
-        if_classifier = IsolationForest(contamination="auto" if contamination is None else contamination,
-                                        random_state=self.random_state)
+        if_classifier = skl.ensemble.IsolationForest(contamination="auto" if contamination is None else contamination,
+                                                     random_state=self.random_state)
         outlier_df = pd.DataFrame(if_classifier.fit_predict(x_all) == -1,
                                   columns=['is_outlier']).set_index(x_all_df.index.values)
+
+        # use 1 and 0 vs. True and False
+        outlier_df["is_outlier"] = outlier_df["is_outlier"].astype(int)
 
         if self.verbose:
             print(f"Outliers: {outlier_df.is_outlier.sum()} ({outlier_df.is_outlier.mean() * 100}%)")
