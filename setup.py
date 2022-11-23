@@ -22,7 +22,7 @@ setup(
     version='0.1.1',
     packages=['ml4qc'],
     python_requires='>=3.8',
-    install_requires=['surveydata', 'pandas', 'numpy>=1.22', 'scikit-learn', 'seaborn', 'matplotlib'],
+    install_requires=['pandas', 'numpy>=1.22', 'scikit-learn', 'seaborn', 'matplotlib'],
     package_dir={'': 'src'},
     url='https://github.com/orangechairlabs/ml4qc',
     project_urls={'Documentation': 'https://ml4qc.readthedocs.io/'},

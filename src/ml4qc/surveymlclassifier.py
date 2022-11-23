@@ -16,15 +16,11 @@
 
 from ml4qc import SurveyML
 from typing import Union
-from numpy.random import RandomState
+import numpy as np
 import pandas as pd
-from sklearn.model_selection import RepeatedStratifiedKFold
-from sklearn.metrics import accuracy_score, precision_score, f1_score, precision_recall_curve, roc_auc_score, \
-    RocCurveDisplay, confusion_matrix, classification_report
-from sklearn.model_selection import cross_validate
+import sklearn as skl
 from matplotlib import pyplot as plt
 import seaborn as sns
-import numpy as np
 
 
 class SurveyMLClassifier(SurveyML):
@@ -32,7 +28,8 @@ class SurveyMLClassifier(SurveyML):
 
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
                  test_size: Union[float, int] = None, cv_when_training: bool = False,
-                 random_state: Union[int, RandomState] = None, verbose: bool = None, reweight_classes: bool = True):
+                 random_state: Union[int, np.random.RandomState] = None, verbose: bool = None,
+                 reweight_classes: bool = True):
         """
         Initialize survey data for classification using machine learning techniques.
 
@@ -48,7 +45,7 @@ class SurveyMLClassifier(SurveyML):
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
-        :type random_state: Union[int, RandomState]
+        :type random_state: Union[int, np.random.RandomState]
         :param verbose: True to report verbose results with print() calls
         :type verbose: bool
         :param reweight_classes: True to reweight classes to account for imbalanced (skewed) data; class weights will
@@ -142,23 +139,29 @@ class SurveyMLClassifier(SurveyML):
         self.result_y_predict_predicted_proba = classifier.predict_proba(self.x_predict_preprocessed)[:, 1]
 
         # save key stats
-        self.result_train_accuracy = accuracy_score(self.y_train_preprocessed, self.result_y_train_predicted)
-        self.result_train_precision = precision_score(self.y_train_preprocessed, self.result_y_train_predicted)
-        self.result_train_f1 = f1_score(self.y_train_preprocessed, self.result_y_train_predicted)
+        self.result_train_accuracy = skl.metrics.accuracy_score(self.y_train_preprocessed,
+                                                                self.result_y_train_predicted)
+        self.result_train_precision = skl.metrics.precision_score(self.y_train_preprocessed,
+                                                                  self.result_y_train_predicted)
+        self.result_train_f1 = skl.metrics.f1_score(self.y_train_preprocessed, self.result_y_train_predicted)
         if self.y_predict_preprocessed is not None:
-            self.result_predict_accuracy = accuracy_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
-            self.result_predict_precision = precision_score(self.y_predict_preprocessed,
-                                                            self.result_y_predict_predicted)
-            self.result_predict_f1 = f1_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
-            self.result_predict_roc_auc = roc_auc_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
+            self.result_predict_accuracy = skl.metrics.accuracy_score(self.y_predict_preprocessed,
+                                                                      self.result_y_predict_predicted)
+            self.result_predict_precision = skl.metrics.precision_score(self.y_predict_preprocessed,
+                                                                        self.result_y_predict_predicted)
+            self.result_predict_f1 = skl.metrics.f1_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
+            self.result_predict_roc_auc = skl.metrics.roc_auc_score(self.y_predict_preprocessed,
+                                                                    self.result_y_predict_predicted)
 
         # if requested, cross-validate and save results
         if self.cv_when_training and supports_cv:
             print("Cross-validating model...")
             print()
-            cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
-            self.result_cv_scores = cross_validate(classifier, self.x_train_preprocessed, self.y_train_preprocessed,
-                                                   cv=cv, scoring=('accuracy', 'precision', 'f1', 'roc_auc'))
+            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
+            self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
+                                                                       self.y_train_preprocessed, cv=cv,
+                                                                       scoring=('accuracy', 'precision', 'f1',
+                                                                                'roc_auc'))
         else:
             self.result_cv_scores = None
 
@@ -192,7 +195,7 @@ class SurveyMLClassifier(SurveyML):
                 print(f"{score_key}: {np.mean(score_value)} (SD: {np.std(score_value)})")
 
         if self.y_predict_preprocessed is not None:
-            RocCurveDisplay.from_predictions(self.y_predict_preprocessed, self.result_y_predict_predicted)
+            skl.metrics.RocCurveDisplay.from_predictions(self.y_predict_preprocessed, self.result_y_predict_predicted)
             plt.title('ROC_AUC_Plot')
             plt.show()
 
@@ -218,7 +221,7 @@ class SurveyMLClassifier(SurveyML):
             plt.show()
 
             # show confusion matrix
-            cm = confusion_matrix(self.y_predict_preprocessed, self.result_y_predict_predicted)
+            cm = skl.metrics.confusion_matrix(self.y_predict_preprocessed, self.result_y_predict_predicted)
             names = ['True Neg', 'False Pos', 'False Neg', 'True Pos']
             counts = [value for value in cm.flatten()]
             percentages = ['{0:.2%}'.format(value) for value in cm.flatten() / np.sum(cm)]
@@ -235,12 +238,12 @@ class SurveyMLClassifier(SurveyML):
             print()
 
             # output classification report
-            print(classification_report(self.y_predict_preprocessed, self.result_y_predict_predicted))
+            print(skl.metrics.classification_report(self.y_predict_preprocessed, self.result_y_predict_predicted))
 
             # plot precision-recall curve
             #   calculate precision and recall
-            precision, recall, thresholds = precision_recall_curve(self.y_predict_preprocessed,
-                                                                   self.result_y_predict_predicted_proba)
+            precision, recall, thresholds = skl.metrics.precision_recall_curve(self.y_predict_preprocessed,
+                                                                               self.result_y_predict_predicted_proba)
             #   create precision recall curve
             fig, ax = plt.subplots()
             ax.plot(recall, precision, color='purple')
