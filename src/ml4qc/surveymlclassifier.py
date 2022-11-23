@@ -94,12 +94,15 @@ class SurveyMLClassifier(SurveyML):
         self.result_predict_roc_auc = None
         self.result_cv_scores = None
 
-    def run_prediction_model(self, classifier):
+    def run_prediction_model(self, classifier, supports_cv: bool = True):
         """
         Execute a classification model.
 
         :param classifier: Classifier to use for prediction (must be sklearn estimator)
         :type classifier: Any
+        :param supports_cv: False if the classifier doesn't support cross-validation (with scores including 'accuracy',
+            'precision', 'f1', 'roc_auc')
+        :type supports_cv: bool
         :return: Predicted classifications for the prediction set
         :rtype: Any
 
@@ -150,10 +153,14 @@ class SurveyMLClassifier(SurveyML):
             self.result_predict_roc_auc = roc_auc_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
 
         # if requested, cross-validate and save results
-        if self.cv_when_training:
+        if self.cv_when_training and supports_cv:
+            print("Cross-validating model...")
+            print()
             cv = RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
             self.result_cv_scores = cross_validate(classifier, self.x_train_preprocessed, self.y_train_preprocessed,
-                                                   cv=cv, scoring=('f1', 'balanced_accuracy', 'roc_auc'))
+                                                   cv=cv, scoring=('accuracy', 'precision', 'f1', 'roc_auc'))
+        else:
+            self.result_cv_scores = None
 
         # report out automatically if in verbose mode
         if self.verbose:
@@ -178,6 +185,7 @@ class SurveyMLClassifier(SurveyML):
             print("  Test ROC_AUC Score: ", '{0:.2}'.format(self.result_predict_roc_auc))
 
         if self.result_cv_scores is not None:
+            print()
             print("Cross validation results: ")
             for score_key, score_value in self.result_cv_scores.items():
                 print(f"{score_key}: {np.mean(score_value)} (SD: {np.std(score_value)})")
