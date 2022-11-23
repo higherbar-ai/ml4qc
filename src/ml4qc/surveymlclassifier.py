@@ -187,6 +187,7 @@ class SurveyMLClassifier(SurveyML):
         if self.result_cv_scores is not None:
             print()
             print("Cross validation results: ")
+            print()
             for score_key, score_value in self.result_cv_scores.items():
                 print(f"{score_key}: {np.mean(score_value)} (SD: {np.std(score_value)})")
 
