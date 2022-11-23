@@ -1,17 +1,17 @@
 # dev environment
-setuptools~=60.2.0
-twine~=4.0.1
-sphinx~=5.3.0
-sphinx-rtd-theme~=1.1.1
+setuptools~=60.2
+twine~=4.0
+sphinx~=5.3
+sphinx-rtd-theme~=1.1
 # Jupyter notebooks
-pytz~=2022.2.1
-xgboost~=1.7.1
-tensorflow~=2.11.0
-scikeras~=0.9.0
+surveydata~=0.1
+pytz~=2022.2
+xgboost~=1.7
+tensorflow~=2.11
+scikeras~=0.9
 # true package dependencies
-surveydata~=0.1.10
-pandas~=1.3.5
-numpy>=1.22
-scikit-learn~=1.0.2
-seaborn~=0.12.1
-matplotlib~=3.6.2
+pandas~=1.3
+numpy~=1.21
+scikit-learn~=1.0
+seaborn~=0.12
+matplotlib~=3.6
