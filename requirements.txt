@@ -7,11 +7,13 @@ sphinx-rtd-theme~=1.1
 surveydata~=0.1
 pytz~=2022.2
 xgboost~=1.7
+xgboost~=1.6 ; python_version < '3.8'
 tensorflow~=2.11
 scikeras~=0.9
 # true package dependencies
 pandas~=1.3
-numpy~=1.21
+numpy~=1.22
+numpy~=1.21 ; python_version < '3.8'
 scikit-learn~=1.0
 seaborn~=0.12
 matplotlib~=3.6
