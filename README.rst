@@ -27,6 +27,7 @@ Examples
 This package is best illustrated by way of example. The following example analyses are available:
 
 * `CATI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb>`_
+* `CAPI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb>`_
 
 Documentation
 -------------

@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.abspath('../../src'))
 project = 'ml4qc'
 copyright = '2022, Orange Chair Labs LLC'
 author = 'Orange Chair Labs LLC'
-release = '0.1.1'
+release = '0.1.2'
 
 
 # -- General configuration ---------------------------------------------------
