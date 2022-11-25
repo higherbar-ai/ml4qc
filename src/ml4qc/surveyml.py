@@ -20,6 +20,10 @@ from numpy.random import RandomState
 import pandas as pd
 import sklearn as skl
 from sklearn.pipeline import Pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
+from sklearn.ensemble import IsolationForest
 
 
 class SurveyML(object):
@@ -56,9 +60,9 @@ class SurveyML(object):
         if x_predict_df is None:
             # split training set into training and test sets
             self.x_train_df, self.x_predict_df, \
-                self.y_train_df, self.y_predict_df = skl.model_selection.train_test_split(x_train_df, y_train_df,
-                                                                                          test_size=test_size,
-                                                                                          random_state=random_state)
+                self.y_train_df, self.y_predict_df = train_test_split(x_train_df, y_train_df,
+                                                                      test_size=test_size,
+                                                                      random_state=random_state)
         else:
             self.x_train_df = x_train_df
             self.y_train_df = y_train_df
@@ -106,19 +110,18 @@ class SurveyML(object):
         else:
             if pca is not None:
                 # for dimensionality reduction: one-hot encode any categorical data, then scale everything
-                transformer = skl.compose.ColumnTransformer(
+                transformer = ColumnTransformer(
                     [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
                       self.features_by_type["other"])], remainder='passthrough')
                 self.preprocessing_pipeline = Pipeline(steps=[
                     ('transform', transformer),
                     ('scale', skl.preprocessing.StandardScaler()),
-                    ('reduce', skl.decomposition.PCA(n_components=0.9, svd_solver="full",
-                                                     random_state=self.random_state))
+                    ('reduce', PCA(n_components=0.9, svd_solver="full", random_state=self.random_state))
                 ])
             else:
                 # for direct use: leave binary and unit-interval data as-is, rescale other numeric data,
                 #                 one-hot encode categorical data
-                transformer = skl.compose.ColumnTransformer(
+                transformer = ColumnTransformer(
                     [('numeric_other', skl.preprocessing.MinMaxScaler(), self.features_by_type["numeric_other"]),
                      ('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
                       self.features_by_type["other"])], remainder='passthrough')
@@ -170,8 +173,8 @@ class SurveyML(object):
         x_all = transformer.fit_transform(x_all_df)
 
         # identify outliers
-        if_classifier = skl.ensemble.IsolationForest(contamination="auto" if contamination is None else contamination,
-                                                     random_state=self.random_state)
+        if_classifier = IsolationForest(contamination="auto" if contamination is None else contamination,
+                                        random_state=self.random_state)
         outlier_df = pd.DataFrame(if_classifier.fit_predict(x_all) == -1,
                                   columns=['is_outlier']).set_index(x_all_df.index.values)
 
