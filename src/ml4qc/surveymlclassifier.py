@@ -246,11 +246,15 @@ class SurveyMLClassifier(SurveyML):
                                                                                self.result_y_predict_predicted_proba)
             #   create precision recall curve
             fig, ax = plt.subplots()
-            ax.plot(recall, precision, color='purple')
+            ax.plot(recall, precision, color='green')
             #   add axis labels to plot
             ax.set_title('Precision-recall curve (prediction set)')
             ax.set_ylabel('Precision')
             ax.set_xlabel('Recall')
+            #   add marker for 50% threshold
+            halfway_index = np.argmax(thresholds >= 0.50)
+            plt.axvline(recall[halfway_index], c='grey', ls=':')
+            plt.axhline(precision[halfway_index], c='grey', ls=':')
             #   display plot
             plt.show()
 
