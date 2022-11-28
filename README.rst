@@ -36,6 +36,12 @@ See the full reference documentation here:
 
     https://ml4qc.readthedocs.io/
 
+Project support
+---------------
+
+`Dobility <https://www.surveycto.com/>`_ has generously provided financial and other support for v1 of the ``ml4qc``
+package, including support for early testing and piloting.
+
 Development
 -----------
 
