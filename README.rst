@@ -3,7 +3,9 @@ ml4qc
 =====
 
 The ``ml4qc`` Python package offers a toolkit for employing machine learning technologies
-in survey data quality control.
+in survey data quality control. Among other things, it helps to extend
+`the surveydata package <https://github.com/orangechairlabs/py-surveydata>`_ and advance `SurveyCTO's
+machine learning roadmap <https://www.surveycto.com/blog/machine-learning-for-quality-control/>`_.
 
 Installation
 ------------
