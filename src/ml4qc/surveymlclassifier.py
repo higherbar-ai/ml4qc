@@ -130,9 +130,26 @@ class SurveyMLClassifier(SurveyML):
             print()
             print(f"  Training set: {self.x_train_preprocessed.shape} ({self.pos_train} positive)")
             print(f"Prediction set: {self.x_predict_preprocessed.shape}")
-            print()
+
+        # if requested, cross-validate training and save results
+        if self.cv_when_training and supports_cv:
+            if self.verbose:
+                print()
+                print("Cross-validating model on training set...")
+                print()
+            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
+            self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
+                                                                       self.y_train_preprocessed, cv=cv,
+                                                                       scoring=('accuracy', 'precision', 'f1',
+                                                                                'roc_auc'))
+        else:
+            self.result_cv_scores = None
 
         # fit model and make predictions
+        if self.verbose:
+            print()
+            print("Fitting model...")
+            print()
         classifier.fit(self.x_train_preprocessed, self.y_train_preprocessed)
         self.result_y_train_predicted = classifier.predict(self.x_train_preprocessed)
         self.result_y_predict_predicted = classifier.predict(self.x_predict_preprocessed)
@@ -152,18 +169,6 @@ class SurveyMLClassifier(SurveyML):
             self.result_predict_f1 = skl.metrics.f1_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
             self.result_predict_roc_auc = skl.metrics.roc_auc_score(self.y_predict_preprocessed,
                                                                     self.result_y_predict_predicted)
-
-        # if requested, cross-validate and save results
-        if self.cv_when_training and supports_cv:
-            print("Cross-validating model...")
-            print()
-            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
-            self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
-                                                                       self.y_train_preprocessed, cv=cv,
-                                                                       scoring=('accuracy', 'precision', 'f1',
-                                                                                'roc_auc'))
-        else:
-            self.result_cv_scores = None
 
         # report out automatically if in verbose mode
         if self.verbose:

@@ -116,7 +116,7 @@ class SurveyML(object):
                 self.preprocessing_pipeline = Pipeline(steps=[
                     ('transform', transformer),
                     ('scale', skl.preprocessing.StandardScaler()),
-                    ('reduce', PCA(n_components=0.9, svd_solver="full", random_state=self.random_state))
+                    ('reduce', PCA(n_components=pca, svd_solver="full", random_state=self.random_state))
                 ])
             else:
                 # for direct use: leave binary and unit-interval data as-is, rescale other numeric data,
