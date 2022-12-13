@@ -4,8 +4,27 @@ ml4qc
 
 The ``ml4qc`` Python package offers a toolkit for employing machine learning technologies
 in survey data quality control. Among other things, it helps to extend
-`the surveydata package <https://github.com/orangechairlabs/py-surveydata>`_ and advance `SurveyCTO's
-machine learning roadmap <https://www.surveycto.com/blog/machine-learning-for-quality-control/>`_.
+`the surveydata package <https://github.com/orangechairlabs/py-surveydata>`_, advance `SurveyCTO's
+machine learning roadmap <https://www.surveycto.com/blog/machine-learning-for-quality-control/>`_,
+and contribute to research like the following:
+
+    **Can machine learning aid survey data quality-control efforts, even without access to actual
+    survey data?**
+
+    A robust quality-control process with some degree of human review is often crucial for survey
+    data quality, but resources for human review are almost always limited and therefore rationed.
+    While traditional statistical methods of directing quality-control efforts often rely on
+    field-by-field analysis to check for outliers, enumerator effects, and unexpected patterns,
+    newer machine-learning-based methods allow for a more holistic evaluation of interviews. ML
+    methods also allow for human review to train models that can then predict the results of
+    review, increasingly focusing review time on potential problems. In this paper, we present the
+    results of a collaboration between research and practice that explored the potential of
+    ML-based methods to direct and supplement QC efforts in several international settings. In
+    particular, we look at the potential for privacy-protecting approaches that allow ML models to
+    be trained and utilized without ever exposing personally-identifiable data — or, indeed, any
+    survey data at all — to ML systems or analysts. Specifically, metadata and paradata, including
+    rich but non-identifying data from mobile device sensors, is used in lieu of
+    potentially-sensitive survey data.
 
 Installation
 ------------
