@@ -80,16 +80,60 @@ class SurveyMLClassifier(SurveyML):
 
         # initialize extra member variables
         self.result_y_train_predicted = None
+        self.result_y_train_predicted_proba = None
         self.result_y_predict_predicted = None
         self.result_y_predict_predicted_proba = None
         self.result_train_accuracy = None
         self.result_train_precision = None
+        self.result_train_avg_precision = None
         self.result_train_f1 = None
         self.result_predict_accuracy = None
         self.result_predict_precision = None
+        self.result_predict_avg_precision = None
         self.result_predict_f1 = None
         self.result_predict_roc_auc = None
         self.result_cv_scores = None
+
+    def cv_for_best_hyperparameters(self, classifier, search_params: dict, model_scoring: str = 'f1',
+                                    n_iter: int = 100) -> dict:
+        """
+        Run cross-validation process to search for best hyperparameters.
+
+        :param classifier: Classifier to use for prediction (must be sklearn estimator)
+        :type classifier: Any
+        :param search_params: Dictionary of search parameters
+        :type search_params: dict
+        :param model_scoring: Score to use for model evaluation (e.g., 'f1' or 'average_precision')
+        :type model_scoring: str
+        :param n_iter: Number of random CV iterations to attempt, during the search
+        :type n_iter: int
+        :return: Best parameters found in search
+        :rtype: dict
+        """
+
+        # output key inputs if in verbose mode
+        if self.verbose:
+            print("Running random CV search for best hyperparameters...")
+            print()
+            print(f"   Scoring: {model_scoring}")
+            print(f"Iterations: {n_iter}")
+            print()
+
+        # run the requested CV parameter search using randomized search
+        cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
+        rand_search = skl.model_selection.RandomizedSearchCV(random_state=None, estimator=classifier, cv=cv,
+                                                             param_distributions=search_params, scoring=model_scoring,
+                                                             n_iter=n_iter, n_jobs=-1, verbose=self.verbose)
+        rand_search.fit(self.x_train_preprocessed, self.y_train_preprocessed)
+
+        # output results if in verbose mode
+        if self.verbose:
+            print()
+            print(f"Best {model_scoring}: {rand_search.best_score_}")
+            print(f"Parameters: {rand_search.best_params_}")
+            print()
+
+        return rand_search.best_params_
 
     def run_prediction_model(self, classifier, supports_cv: bool = True):
         """
@@ -98,7 +142,7 @@ class SurveyMLClassifier(SurveyML):
         :param classifier: Classifier to use for prediction (must be sklearn estimator)
         :type classifier: Any
         :param supports_cv: False if the classifier doesn't support cross-validation (with scores including 'accuracy',
-            'precision', 'f1', 'roc_auc')
+            'precision', 'average_precision', 'f1', 'roc_auc')
         :type supports_cv: bool
         :return: Predicted classifications for the prediction set
         :rtype: Any
@@ -140,8 +184,8 @@ class SurveyMLClassifier(SurveyML):
             cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
             self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
                                                                        self.y_train_preprocessed, cv=cv,
-                                                                       scoring=('accuracy', 'precision', 'f1',
-                                                                                'roc_auc'))
+                                                                       scoring=('accuracy', 'precision',
+                                                                                'average_precision', 'f1', 'roc_auc'))
         else:
             self.result_cv_scores = None
 
@@ -152,6 +196,7 @@ class SurveyMLClassifier(SurveyML):
             print()
         classifier.fit(self.x_train_preprocessed, self.y_train_preprocessed)
         self.result_y_train_predicted = classifier.predict(self.x_train_preprocessed)
+        self.result_y_train_predicted_proba = classifier.predict_proba(self.x_train_preprocessed)[:, 1]
         self.result_y_predict_predicted = classifier.predict(self.x_predict_preprocessed)
         self.result_y_predict_predicted_proba = classifier.predict_proba(self.x_predict_preprocessed)[:, 1]
 
@@ -160,12 +205,16 @@ class SurveyMLClassifier(SurveyML):
                                                                 self.result_y_train_predicted)
         self.result_train_precision = skl.metrics.precision_score(self.y_train_preprocessed,
                                                                   self.result_y_train_predicted)
+        self.result_train_avg_precision = skl.metrics.average_precision_score(self.y_train_preprocessed,
+                                                                              self.result_y_train_predicted_proba)
         self.result_train_f1 = skl.metrics.f1_score(self.y_train_preprocessed, self.result_y_train_predicted)
         if self.y_predict_preprocessed is not None:
             self.result_predict_accuracy = skl.metrics.accuracy_score(self.y_predict_preprocessed,
                                                                       self.result_y_predict_predicted)
             self.result_predict_precision = skl.metrics.precision_score(self.y_predict_preprocessed,
                                                                         self.result_y_predict_predicted)
+            self.result_predict_avg_precision = skl.metrics.average_precision_score(
+                self.y_predict_preprocessed, self.result_y_predict_predicted_proba)
             self.result_predict_f1 = skl.metrics.f1_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
             self.result_predict_roc_auc = skl.metrics.roc_auc_score(self.y_predict_preprocessed,
                                                                     self.result_y_predict_predicted)
@@ -182,15 +231,17 @@ class SurveyMLClassifier(SurveyML):
         Report out on prediction results (after run_prediction_model()).
         """
 
-        print("      Train accuracy: ", '{0:.2%}'.format(self.result_train_accuracy))
-        print("     Train precision: ", '{0:.2%}'.format(self.result_train_precision))
-        print("           Train F-1: ", '{0:.2}'.format(self.result_train_f1))
+        print("          Train accuracy: ", '{0:.2%}'.format(self.result_train_accuracy))
+        print("         Train precision: ", '{0:.2%}'.format(self.result_train_precision))
+        print("     Train avg precision: ", '{0:.2%}'.format(self.result_train_avg_precision))
+        print("               Train F-1: ", '{0:.2}'.format(self.result_train_f1))
 
         if self.y_predict_preprocessed is not None:
-            print(" Prediction accuracy: ", '{0:.2%}'.format(self.result_predict_accuracy))
-            print("Prediction precision: ", '{0:.2%}'.format(self.result_predict_precision))
-            print("      Prediction F-1: ", '{0:.2}'.format(self.result_predict_f1))
-            print("  Test ROC_AUC Score: ", '{0:.2}'.format(self.result_predict_roc_auc))
+            print("     Prediction accuracy: ", '{0:.2%}'.format(self.result_predict_accuracy))
+            print("    Prediction precision: ", '{0:.2%}'.format(self.result_predict_precision))
+            print("Prediction avg precision: ", '{0:.2%}'.format(self.result_predict_avg_precision))
+            print("          Prediction F-1: ", '{0:.2}'.format(self.result_predict_f1))
+            print("      Test ROC_AUC Score: ", '{0:.2}'.format(self.result_predict_roc_auc))
 
         if self.result_cv_scores is not None:
             print()
