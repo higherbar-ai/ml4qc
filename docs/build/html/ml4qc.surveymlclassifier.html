@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ml4qc.surveymlclassifier module &mdash; ml4qc 0.1.3 documentation</title>
+  <title>ml4qc.surveymlclassifier module &mdash; ml4qc 0.1.4 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -112,6 +112,56 @@ be in the class_weights member variable</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveymlclassifier.SurveyMLClassifier.build_nn_model">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">build_nn_model</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">features</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hidden_layers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">initial_units</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">activation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l2_regularization</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l2_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">include_dropout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dropout_rate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_bias</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Model</span></span></span><a class="headerlink" href="#ml4qc.surveymlclassifier.SurveyMLClassifier.build_nn_model" title="Permalink to this definition"></a></dt>
+<dd><p>Build neural network model with fixed structure (each hidden layer with half as many units as the last).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>features</strong> (<em>int</em>) – Number of features for input layer</p></li>
+<li><p><strong>hidden_layers</strong> (<em>int</em>) – Number of hidden layers to include</p></li>
+<li><p><strong>initial_units</strong> (<em>int</em>) – Number of units in initial hidden layer (each additional hidden layer will have half as
+many as the last)</p></li>
+<li><p><strong>activation</strong> (<em>str</em>) – Activation function to use in hidden layers (e.g., ‘relu’ or ‘sigmoid’)</p></li>
+<li><p><strong>l2_regularization</strong> (<em>bool</em>) – True to include L2 regularization</p></li>
+<li><p><strong>l2_factor</strong> (<em>float</em>) – L2 regularization factor to use, if including L2 regularization</p></li>
+<li><p><strong>include_dropout</strong> (<em>bool</em>) – True to include dropout layers (starting with the input layer)</p></li>
+<li><p><strong>dropout_rate</strong> (<em>float</em>) – Dropout rate to use, if including dropout layers</p></li>
+<li><p><strong>output_bias</strong> (<em>float</em>) – Output bias to initialize with, if any</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Model ready for fitting</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tf.keras.models.Model</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveymlclassifier.SurveyMLClassifier.cv_for_best_hyperparameters">
+<span class="sig-name descname"><span class="pre">cv_for_best_hyperparameters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classifier</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_scoring</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'f1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_iter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">100</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#ml4qc.surveymlclassifier.SurveyMLClassifier.cv_for_best_hyperparameters" title="Permalink to this definition"></a></dt>
+<dd><p>Run cross-validation process to search for best hyperparameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>classifier</strong> (<em>Any</em>) – Classifier to use for prediction (must be sklearn estimator)</p></li>
+<li><p><strong>search_params</strong> (<em>dict</em>) – Dictionary of search parameters</p></li>
+<li><p><strong>model_scoring</strong> (<em>str</em>) – Score to use for model evaluation (e.g., ‘f1’ or ‘average_precision’)</p></li>
+<li><p><strong>n_iter</strong> (<em>int</em>) – Number of random CV iterations to attempt, during the search</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Best parameters found in search</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ml4qc.surveymlclassifier.SurveyMLClassifier.report_feature_importance">
 <span class="sig-name descname"><span class="pre">report_feature_importance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">importance_array</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ml4qc.surveymlclassifier.SurveyMLClassifier.report_feature_importance" title="Permalink to this definition"></a></dt>
 <dd><p>Report feature importance.</p>
@@ -137,7 +187,7 @@ be in the class_weights member variable</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>classifier</strong> (<em>Any</em>) – Classifier to use for prediction (must be sklearn estimator)</p></li>
 <li><p><strong>supports_cv</strong> (<em>bool</em>) – False if the classifier doesn’t support cross-validation (with scores including ‘accuracy’,
-‘precision’, ‘f1’, ‘roc_auc’)</p></li>
+‘precision’, ‘average_precision’, ‘f1’, ‘roc_auc’)</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns</dt>

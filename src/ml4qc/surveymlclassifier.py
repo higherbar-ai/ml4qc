@@ -21,6 +21,7 @@ import pandas as pd
 import sklearn as skl
 from matplotlib import pyplot as plt
 import seaborn as sns
+import tensorflow as tf
 
 
 class SurveyMLClassifier(SurveyML):
@@ -332,3 +333,73 @@ class SurveyMLClassifier(SurveyML):
         print("Feature importance:")
         for feature_name, importance in named_importance:
             print("Feature: %s, Score: %.5f" % (feature_name, importance))
+
+    @staticmethod
+    def build_nn_model(features: int, hidden_layers: int = 1, initial_units: int = 1, activation: str = 'relu',
+                       l2_regularization: bool = True, l2_factor: float = 0.001, include_dropout: bool = True,
+                       dropout_rate: float = 0.10, output_bias: float = None) -> tf.keras.models.Model:
+        """
+        Build neural network model with fixed structure (each hidden layer with half as many units as the last).
+
+        :param features: Number of features for input layer
+        :type features: int
+        :param hidden_layers: Number of hidden layers to include
+        :type hidden_layers: int
+        :param initial_units: Number of units in initial hidden layer (each additional hidden layer will have half as
+            many as the last)
+        :type initial_units: int
+        :param activation: Activation function to use in hidden layers (e.g., 'relu' or 'sigmoid')
+        :type activation: str
+        :param l2_regularization: True to include L2 regularization
+        :type l2_regularization: bool
+        :param l2_factor: L2 regularization factor to use, if including L2 regularization
+        :type l2_factor: float
+        :param include_dropout: True to include dropout layers (starting with the input layer)
+        :type include_dropout: bool
+        :param dropout_rate: Dropout rate to use, if including dropout layers
+        :type dropout_rate: float
+        :param output_bias: Output bias to initialize with, if any
+        :type output_bias: float
+        :return: Model ready for fitting
+        :rtype: tf.keras.models.Model
+        """
+
+        # initialize neural network model
+        nn_model = tf.keras.models.Sequential()
+
+        # include one unit for each feature in the first layer, with dropouts first if requested
+        if include_dropout:
+            nn_model.add(tf.keras.layers.Dropout(dropout_rate, input_shape=(features,)))
+            nn_model.add(tf.keras.layers.Dense(initial_units, kernel_regularizer=(tf.keras.regularizers.l2(l2_factor)
+                                                                                  if l2_regularization else None),
+                                               activation=activation))
+        else:
+            nn_model.add(tf.keras.layers.Dense(initial_units, kernel_regularizer=(tf.keras.regularizers.l2(l2_factor)
+                                                                                  if l2_regularization else None),
+                                               activation=activation, input_shape=(features,)))
+
+        # add additional layers as requested, each with half as many units as the previous layer
+        for layer in range(2, hidden_layers + 1):
+            if include_dropout:
+                nn_model.add(tf.keras.layers.Dropout(dropout_rate))
+
+            nn_model.add(tf.keras.layers.Dense(initial_units / (2 ** (layer - 1)),
+                                               kernel_regularizer=(tf.keras.regularizers.l2(l2_factor)
+                                                                   if l2_regularization else None),
+                                               activation=activation))
+
+        if include_dropout:
+            nn_model.add(tf.keras.layers.Dropout(dropout_rate))
+
+        # include output_bias if supplied
+        if output_bias is None:
+            output_bias_constant = None
+        else:
+            output_bias_constant = tf.keras.initializers.Constant(output_bias)
+
+        # add output layer with sigmoid activation for binary classification
+        nn_model.add(tf.keras.layers.Dense(1, activation='sigmoid', bias_initializer=output_bias_constant))
+
+        # compile and return model
+        nn_model.compile(loss='binary_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam())
+        return nn_model
