@@ -19,10 +19,10 @@ with open('README.rst') as file:
 
 setup(
     name='ml4qc',
-    version='0.1.3',
+    version='0.1.4',
     packages=['ml4qc'],
     python_requires='>=3.7',
-    install_requires=['pandas', 'numpy', 'scikit-learn', 'seaborn', 'matplotlib'],
+    install_requires=['pandas', 'numpy', 'scikit-learn', 'seaborn', 'matplotlib', 'tensorflow'],
     package_dir={'': 'src'},
     url='https://github.com/orangechairlabs/ml4qc',
     project_urls={'Documentation': 'https://ml4qc.readthedocs.io/'},
