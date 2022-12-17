@@ -73,6 +73,7 @@ To develop locally:
 #. ``python -m venv venv``
 #. ``source venv/bin/activate``
 #. ``pip install -r requirements.txt``
+#. If you're on a Mac and want to use your GPU, you can: ``pip install tensorflow-macos tensorflow-metal``
 
 For convenience, the repo includes ``.idea`` project files for PyCharm.
 
