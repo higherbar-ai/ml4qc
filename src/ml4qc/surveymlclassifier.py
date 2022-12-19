@@ -28,7 +28,7 @@ class SurveyMLClassifier(SurveyML):
     """Class for using machine learning classification techniques on survey data."""
 
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
-                 test_size: Union[float, int] = None, cv_when_training: bool = False,
+                 test_size: Union[float, int] = None, cv_when_training: bool = False, n_jobs: int = -2,
                  random_state: Union[int, np.random.RandomState] = None, verbose: bool = None,
                  reweight_classes: bool = True):
         """
@@ -45,6 +45,9 @@ class SurveyMLClassifier(SurveyML):
         :type test_size: Union[float, int]
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
+        :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
+            leave one CPU free)
+        :type n_jobs: int
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
         :type random_state: Union[int, np.random.RandomState]
         :param verbose: True to report verbose results with print() calls
@@ -57,7 +60,8 @@ class SurveyMLClassifier(SurveyML):
         """
 
         # initialize base class first
-        super().__init__(x_train_df, y_train_df, x_predict_df, test_size, cv_when_training, random_state, verbose)
+        super().__init__(x_train_df=x_train_df, y_train_df=y_train_df, x_predict_df=x_predict_df, test_size=test_size,
+                         cv_when_training=cv_when_training, n_jobs=n_jobs, random_state=random_state, verbose=verbose)
 
         # confirm that we're set up for binary classification problems (the only problems currently supported)
         unique_vals = self.y_train_df.iloc[:, 0].unique()
@@ -121,10 +125,11 @@ class SurveyMLClassifier(SurveyML):
             print()
 
         # run the requested CV parameter search using randomized search
-        cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
-        rand_search = skl.model_selection.RandomizedSearchCV(random_state=None, estimator=classifier, cv=cv,
+        cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.random_state)
+        rand_search = skl.model_selection.RandomizedSearchCV(random_state=self.random_state,
+                                                             estimator=classifier, cv=cv,
                                                              param_distributions=search_params, scoring=model_scoring,
-                                                             n_iter=n_iter, n_jobs=-2, verbose=self.verbose)
+                                                             n_iter=n_iter, n_jobs=self.n_jobs, verbose=self.verbose)
         rand_search.fit(self.x_train_preprocessed, self.y_train_preprocessed)
 
         # output results if in verbose mode
@@ -182,9 +187,10 @@ class SurveyMLClassifier(SurveyML):
                 print()
                 print("Cross-validating model on training set...")
                 print()
-            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
+            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.random_state)
             self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
-                                                                       self.y_train_preprocessed, cv=cv,
+                                                                       self.y_train_preprocessed,
+                                                                       cv=cv, n_jobs=self.n_jobs,
                                                                        scoring=('accuracy', 'precision',
                                                                                 'average_precision', 'f1', 'roc_auc'))
         else:
