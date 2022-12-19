@@ -30,7 +30,7 @@ class SurveyML(object):
     """Base class for using machine learning techniques on survey data."""
 
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
-                 test_size: Union[float, int] = None, cv_when_training: bool = False,
+                 test_size: Union[float, int] = None, cv_when_training: bool = False, n_jobs: int = -2,
                  random_state: Union[int, RandomState] = None, verbose: bool = None):
         """
         Initialize survey data for machine learning.
@@ -46,6 +46,9 @@ class SurveyML(object):
         :type test_size: Union[float, int]
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
+        :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
+            leave one CPU free)
+        :type n_jobs: int
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
         :type random_state: Union[int, RandomState]
         :param verbose: True to report verbose results with print() calls
@@ -71,6 +74,7 @@ class SurveyML(object):
 
         self.test_size = test_size
         self.cv_when_training = cv_when_training
+        self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
 
