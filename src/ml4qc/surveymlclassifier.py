@@ -124,7 +124,7 @@ class SurveyMLClassifier(SurveyML):
         cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=None)
         rand_search = skl.model_selection.RandomizedSearchCV(random_state=None, estimator=classifier, cv=cv,
                                                              param_distributions=search_params, scoring=model_scoring,
-                                                             n_iter=n_iter, n_jobs=-1, verbose=self.verbose)
+                                                             n_iter=n_iter, n_jobs=-2, verbose=self.verbose)
         rand_search.fit(self.x_train_preprocessed, self.y_train_preprocessed)
 
         # output results if in verbose mode
