@@ -4,7 +4,7 @@ twine~=4.0
 sphinx~=5.3
 sphinx-rtd-theme~=1.1
 # Jupyter notebooks
-surveydata>=0.1.11
+surveydata>=0.1.12
 pytz~=2022.2
 xgboost~=1.6 ; python_version < '3.8'
 xgboost~=1.7 ; python_version >= '3.8'
