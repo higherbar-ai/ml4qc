@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ml4qc Python Package Documentation &mdash; ml4qc 0.1.5 documentation</title>
+  <title>ml4qc Python Package Documentation &mdash; ml4qc 0.1.6 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -107,13 +107,30 @@ utility classes for working with survey data:</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">SurveyML</span></code> provides core functionality, including preprocessing and outlier detection</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code> builds on <code class="docutils literal notranslate"><span class="pre">SurveyML</span></code>, adding support for running classification models and reporting out results</p></li>
 </ul>
+<p>While <code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code> supports a variety of approaches, the currently-recommended
+approach to binary classification is as follows:</p>
+<ol class="arabic simple">
+<li><p>Do <em>not</em> reweight for class imbalances; use
+<code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier.cv_for_best_hyperparameters()</span></code> to find the optimal hyperparameters
+for a given dataset, with <em>neg_log_loss</em>, <em>neg_brier_score</em>, or <em>roc_auc</em> as the CV metric
+to optimize. This will optimize for an unbiased distribution of estimated probabilities.</p></li>
+<li><p>Use a <code class="docutils literal notranslate"><span class="pre">calibration_method</span></code> (<em>isotonic</em> or <em>sigmoid</em>) to calibrate the estimated
+probability distribution.</p></li>
+<li><p>Almost always (and especially when classes are imbalanced), specify a non-default option
+for the classification <code class="docutils literal notranslate"><span class="pre">threshold</span></code> (and possibly <code class="docutils literal notranslate"><span class="pre">threshold_value</span></code>), as the
+default threshold of 0.5 is unlikely to be optimal. When in doubt, use
+<code class="docutils literal notranslate"><span class="pre">threshold='optimal_f'</span></code> to choose the threshold that maximizes the F-1 score.</p></li>
+</ol>
+<p>This is essentially the approach used in the examples linked below.</p>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this heading"></a></h2>
 <p>This package is best illustrated by way of example. The following example analyses are available:</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb">CATI1 analysis</a></p></li>
+<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb">CATI2 analysis</a></p></li>
 <li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb">CAPI1 analysis</a></p></li>
+<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb">CAPI2 analysis</a></p></li>
 </ul>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
@@ -127,6 +144,7 @@ utility classes for working with survey data:</p>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="ml4qc.surveymlclassifier.html">ml4qc.surveymlclassifier module</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="ml4qc.surveymlclassifier.html#ml4qc.surveymlclassifier.SurveyMLClassifier"><code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code></a></li>
+<li class="toctree-l5"><a class="reference internal" href="ml4qc.surveymlclassifier.html#ml4qc.surveymlclassifier.ThresholdClassifier"><code class="docutils literal notranslate"><span class="pre">ThresholdClassifier</span></code></a></li>
 </ul>
 </li>
 </ul>
