@@ -19,6 +19,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 import sklearn as skl
+import sklearn.calibration as sklcal
 from matplotlib import pyplot as plt
 import seaborn as sns
 import tensorflow as tf
@@ -30,7 +31,7 @@ class SurveyMLClassifier(SurveyML):
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
                  test_size: Union[float, int] = None, cv_when_training: bool = False, n_jobs: int = -2,
                  random_state: Union[int, np.random.RandomState] = None, verbose: bool = None,
-                 reweight_classes: bool = True):
+                 calibration_method: str = None, threshold: str = 'default', threshold_value: float = None):
         """
         Initialize survey data for classification using machine learning techniques.
 
@@ -46,15 +47,24 @@ class SurveyMLClassifier(SurveyML):
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
         :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
-            leave one CPU free)
+            leave one CPU free, etc.)
         :type n_jobs: int
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
         :type random_state: Union[int, np.random.RandomState]
         :param verbose: True to report verbose results with print() calls
         :type verbose: bool
-        :param reweight_classes: True to reweight classes to account for imbalanced (skewed) data; class weights will
-            be in the class_weights member variable
-        :type reweight_classes: bool
+        :param calibration_method: 'isotonic' or 'sigmoid' to perform probability calibration, otherwise None
+        :type calibration_method: str
+        :param threshold: Threshold to use for decision boundary: 'default' to let classifiers default to 0.5;
+            'optimal_f' to automatically choose based on what maximizes the F score in the training set (defaults to
+            F1 score, but you can specify a beta value to use in threshold_value);
+            'optimal_j' to automatically choose based on what maximizes Youden’s J statistic in the training set;
+            'fixed' to set to a fixed threshold as specified in threshold_value;
+            'target' to set in order to classify threshold_value*100% as positive
+        :type threshold: str
+        :param threshold_value: Value to use if threshold is 'fixed' or 'target' (should be value between 0 and 1); or,
+            optionally, for optimal_f, the beta value to use for the F score
+        :type threshold_value: float
 
         Note: Currently, only binary classification problems are supported.
         """
@@ -69,32 +79,47 @@ class SurveyMLClassifier(SurveyML):
             raise ValueError("Currently, only binary classification problems are supported, so must have a single "
                              "target column with only 0's and 1's in it.")
 
+        # confirm and set threshold parameter values
+        if threshold == 'fixed' or threshold == 'target':
+            if threshold_value is None or threshold_value <= 0 or threshold_value >= 1:
+                raise ValueError(f"For {threshold} threshold, must specify threshold_value between 0 and 1.")
+        else:
+            if threshold != "optimal_f" and threshold_value is not None:
+                raise ValueError(f"For {threshold} threshold, threshold_value should be unspecified (or None).")
+        self.threshold = threshold
+        self.threshold_value = threshold_value
+
+        # set probability calibration method
+        self.calibration_method = calibration_method
+
         # save some basic stats on the training set
         self.total_train = self.y_train_df.size
         self.pos_train = self.y_train_df.iloc[:, 0].sum()
         self.neg_train = self.total_train - self.pos_train
 
-        # support optional class reweighting
-        if reweight_classes:
-            # define class weights that can help to make up for class imbalance
-            # (from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data)
-            self.class_weights = {0: (1/self.neg_train)*(self.total_train/2.0),
-                                  1: (1/self.pos_train)*(self.total_train/2.0)}
-        else:
-            self.class_weights = None
+        # set optional class weights that can help to make up for class imbalance
+        # (from https://www.tensorflow.org/tutorials/structured_data/imbalanced_data)
+        self.class_weights = {0: (1/self.neg_train)*(self.total_train/2.0),
+                              1: (1/self.pos_train)*(self.total_train/2.0)}
+
+        # set tensorflow seed, if we have a seed
+        if self.random_state is not None:
+            tf.random.set_seed(self.random_state)
 
         # initialize extra member variables
+        self.classifier = None
+        self.fitted_estimator = None
+        self.threshold_used = None
         self.result_y_train_predicted = None
         self.result_y_train_predicted_proba = None
         self.result_y_predict_predicted = None
         self.result_y_predict_predicted_proba = None
         self.result_train_accuracy = None
         self.result_train_precision = None
-        self.result_train_avg_precision = None
         self.result_train_f1 = None
+        self.result_train_roc_auc = None
         self.result_predict_accuracy = None
         self.result_predict_precision = None
-        self.result_predict_avg_precision = None
         self.result_predict_f1 = None
         self.result_predict_roc_auc = None
         self.result_cv_scores = None
@@ -108,7 +133,7 @@ class SurveyMLClassifier(SurveyML):
         :type classifier: Any
         :param search_params: Dictionary of search parameters
         :type search_params: dict
-        :param model_scoring: Score to use for model evaluation (e.g., 'f1' or 'average_precision')
+        :param model_scoring: Score to use for model evaluation (e.g., 'f1' or 'neg_brier_score')
         :type model_scoring: str
         :param n_iter: Number of random CV iterations to attempt, during the search
         :type n_iter: int
@@ -148,7 +173,7 @@ class SurveyMLClassifier(SurveyML):
         :param classifier: Classifier to use for prediction (must be sklearn estimator)
         :type classifier: Any
         :param supports_cv: False if the classifier doesn't support cross-validation (with scores including 'accuracy',
-            'precision', 'average_precision', 'f1', 'roc_auc')
+            'precision', 'f1', 'roc_auc', 'neg_log_loss', and 'neg_brier_score')
         :type supports_cv: bool
         :return: Predicted classifications for the prediction set
         :rtype: Any
@@ -157,10 +182,11 @@ class SurveyMLClassifier(SurveyML):
 
         * **result_y_train_predicted** - Predicted classifications for the training set
         * **result_y_predict_predicted** - Predicted classifications for the prediction set
-        * **result_y_predict_predicted_proba** - Predicted probabilities for the training set
+        * **result_y_predict_predicted_proba** - Predicted probabilities for the prediction set
         * **result_train_accuracy** - Accuracy predicting within training set
         * **result_train_precision** - Precision predicting within training set
         * **result_train_f1** - F1 score for predictions within training set
+        * **result_train_roc_auc** - ROC AUC score for predictions within training set
         * **result_predict_accuracy** - Accuracy predicting within prediction set
         * **result_predict_precision** - Precision predicting within prediction set
         * **result_predict_f1** - F1 score for predictions within prediction set
@@ -178,53 +204,93 @@ class SurveyMLClassifier(SurveyML):
         if self.verbose:
             print("Running prediction model...")
             print()
-            print(f"  Training set: {self.x_train_preprocessed.shape} ({self.pos_train} positive)")
-            print(f"Prediction set: {self.x_predict_preprocessed.shape}")
-
-        # if requested, cross-validate training and save results
-        if self.cv_when_training and supports_cv:
-            if self.verbose:
-                print()
-                print("Cross-validating model on training set...")
-                print()
-            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.random_state)
-            self.result_cv_scores = skl.model_selection.cross_validate(classifier, self.x_train_preprocessed,
-                                                                       self.y_train_preprocessed,
-                                                                       cv=cv, n_jobs=self.n_jobs,
-                                                                       scoring=('accuracy', 'precision',
-                                                                                'average_precision', 'f1', 'roc_auc'))
-        else:
-            self.result_cv_scores = None
-
-        # fit model and make predictions
-        if self.verbose:
+            print(f"      Training set: {self.x_train_preprocessed.shape} ({self.pos_train} positive)")
+            print(f"    Prediction set: {self.x_predict_preprocessed.shape}")
+            if self.calibration_method is not None:
+                print(f"Calibration method: {self.calibration_method}")
+            print(f"Decision threshold: {self.threshold} "
+                  f"{'(' + str(self.threshold_value) + ')' if self.threshold_value is not None else ''}")
             print()
+
+        # if we're calibrating probabilities, wrap classifier with appropriate calibrator
+        if self.calibration_method is not None:
+            # wrap classifier with probability calibration method (using ensemble=False so that we still train with
+            # the full training set vs. an ensemble of folds)
+            cal_cv = skl.model_selection.StratifiedKFold(n_splits=5, shuffle=True, random_state=self.random_state)
+            self.classifier = sklcal.CalibratedClassifierCV(classifier, cv=cal_cv, n_jobs=self.n_jobs,
+                                                            ensemble=False, method=self.calibration_method)
+        else:
+            # use the requested classifier as-is
+            self.classifier = classifier
+
+        # if we're using a non-default decision threshold, use threshold classifier for category prediction
+        if self.threshold == "default":
+            self.threshold_used = 0.5
+            prediction_classifier = self.classifier
+        else:
+            if self.threshold == "fixed":
+                self.threshold_used = self.threshold_value
+            else:
+                # for all but fixed thresholds, use cross-validation to find the optimal threshold
+                if self.verbose:
+                    print("Cross-validating to find optimal threshold...")
+                    print()
+                self.threshold_used = self._cv_for_best_threshold(self.classifier)
+
+            # wrap classifier with custom threshold support
+            if self.verbose:
+                print(f"   Final threshold: {self.threshold_used}")
+                print()
+            prediction_classifier = ThresholdClassifier(self.classifier, threshold=self.threshold_used)
+
+        # fit model
+        if self.verbose:
             print("Fitting model...")
             print()
-        classifier.fit(self.x_train_preprocessed, self.y_train_preprocessed)
-        self.result_y_train_predicted = classifier.predict(self.x_train_preprocessed)
-        self.result_y_train_predicted_proba = classifier.predict_proba(self.x_train_preprocessed)[:, 1]
-        self.result_y_predict_predicted = classifier.predict(self.x_predict_preprocessed)
-        self.result_y_predict_predicted_proba = classifier.predict_proba(self.x_predict_preprocessed)[:, 1]
+        prediction_classifier.fit(self.x_train_preprocessed, self.y_train_preprocessed)
+
+        # make predictions
+        self.result_y_train_predicted_proba = prediction_classifier.predict_proba(self.x_train_preprocessed)[:, 1]
+        self.result_y_train_predicted = prediction_classifier.predict(self.x_train_preprocessed)
+        self.result_y_predict_predicted_proba = prediction_classifier.predict_proba(self.x_predict_preprocessed)[:, 1]
+        self.result_y_predict_predicted = prediction_classifier.predict(self.x_predict_preprocessed)
 
         # save key stats
         self.result_train_accuracy = skl.metrics.accuracy_score(self.y_train_preprocessed,
                                                                 self.result_y_train_predicted)
         self.result_train_precision = skl.metrics.precision_score(self.y_train_preprocessed,
                                                                   self.result_y_train_predicted)
-        self.result_train_avg_precision = skl.metrics.average_precision_score(self.y_train_preprocessed,
-                                                                              self.result_y_train_predicted_proba)
         self.result_train_f1 = skl.metrics.f1_score(self.y_train_preprocessed, self.result_y_train_predicted)
+        self.result_train_roc_auc = skl.metrics.roc_auc_score(self.y_train_preprocessed, self.result_y_train_predicted)
         if self.y_predict_preprocessed is not None:
             self.result_predict_accuracy = skl.metrics.accuracy_score(self.y_predict_preprocessed,
                                                                       self.result_y_predict_predicted)
             self.result_predict_precision = skl.metrics.precision_score(self.y_predict_preprocessed,
                                                                         self.result_y_predict_predicted)
-            self.result_predict_avg_precision = skl.metrics.average_precision_score(
-                self.y_predict_preprocessed, self.result_y_predict_predicted_proba)
             self.result_predict_f1 = skl.metrics.f1_score(self.y_predict_preprocessed, self.result_y_predict_predicted)
             self.result_predict_roc_auc = skl.metrics.roc_auc_score(self.y_predict_preprocessed,
                                                                     self.result_y_predict_predicted)
+
+        # if requested, cross-validate training and save results
+        if self.cv_when_training and supports_cv:
+            if self.verbose:
+                print("Cross-validating model on training set...")
+                print()
+            cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=5, n_repeats=3, random_state=self.random_state)
+            self.result_cv_scores = skl.model_selection.cross_validate(prediction_classifier, self.x_train_preprocessed,
+                                                                       self.y_train_preprocessed,
+                                                                       cv=cv, n_jobs=self.n_jobs,
+                                                                       scoring=('accuracy', 'precision',
+                                                                                'f1', 'roc_auc', 'neg_log_loss',
+                                                                                'neg_brier_score'))
+        else:
+            self.result_cv_scores = None
+
+        # save the fitted estimator for easy access
+        if self.calibration_method is not None:
+            self.fitted_estimator = self.classifier.calibrated_classifiers_[0].estimator
+        else:
+            self.fitted_estimator = classifier
 
         # report out automatically if in verbose mode
         if self.verbose:
@@ -233,6 +299,55 @@ class SurveyMLClassifier(SurveyML):
         # return predictions
         return self.result_y_predict_predicted
 
+    def _cv_for_best_threshold(self, classifier) -> float:
+        """
+        Use cross-validation to determine optimal threshold.
+
+        :param classifier: Classifier to use
+        :type classifier: Any
+        :return: Mean optimal threshold from cross-validation
+        :rtype: float
+        """
+        # run 2-fold cross-validation 5 times for a total of 10 folds
+        cv = skl.model_selection.RepeatedStratifiedKFold(n_splits=2, n_repeats=5, random_state=self.random_state)
+        optimal_thresholds = []
+        for i, (train_index, test_index) in enumerate(cv.split(self.x_train_preprocessed, self.y_train_preprocessed)):
+            # use a clean clone of the classifier
+            cv_classifier = skl.base.clone(classifier)
+            # train model
+            x_train = self.x_train_preprocessed[train_index]
+            y_train = self.y_train_preprocessed[train_index]
+            x_test = self.x_train_preprocessed[test_index]
+            y_test = self.y_train_preprocessed[test_index]
+            cv_classifier.fit(x_train, y_train)
+
+            # predict probabilities
+            test_predicted_proba = cv_classifier.predict_proba(x_test)[:, 1]
+
+            # calculate the optimal threshold for this fold
+            if self.threshold == "target":
+                target_count = int(len(test_predicted_proba) * self.threshold_value)
+                optimal_thresholds.append(np.sort(test_predicted_proba)[-target_count])
+            elif self.threshold == "optimal_f":
+                # default to beta=1 for F1 score, but allow override via threshold_value parameter
+                beta = self.threshold_value if self.threshold_value is not None else 1
+                precision, recall, thresholds = skl.metrics.precision_recall_curve(y_test, test_predicted_proba)
+                # ignore divide-by-zero errors in F score calculation
+                old_np_settings = np.seterr(divide='ignore', invalid='ignore')
+                f_score = ((1 + beta ** 2) * precision * recall) / ((beta ** 2) * precision + recall)
+                np.seterr(**old_np_settings)
+                optimal_thresholds.append(thresholds[np.argmax(f_score)])
+            elif self.threshold == "optimal_j":
+                # calculate Youden’s J statistic from ROC curve
+                fpr, tpr, thresholds = skl.metrics.roc_curve(y_test, test_predicted_proba)
+                j_stat = tpr - fpr
+                optimal_thresholds.append(thresholds[np.argmax(j_stat)])
+            else:
+                raise ValueError(f"Unknown threshold setting (or setting that doesn't require CV): {self.threshold}")
+
+        # return average optimal threshold
+        return sum(optimal_thresholds) / len(optimal_thresholds)
+
     def report_prediction_results(self):
         """
         Report out on prediction results (after run_prediction_model()).
@@ -240,22 +355,14 @@ class SurveyMLClassifier(SurveyML):
 
         print("          Train accuracy: ", '{0:.2%}'.format(self.result_train_accuracy))
         print("         Train precision: ", '{0:.2%}'.format(self.result_train_precision))
-        print("     Train avg precision: ", '{0:.2%}'.format(self.result_train_avg_precision))
         print("               Train F-1: ", '{0:.2}'.format(self.result_train_f1))
+        print("     Train ROC_AUC Score: ", '{0:.2}'.format(self.result_train_roc_auc))
 
         if self.y_predict_preprocessed is not None:
             print("     Prediction accuracy: ", '{0:.2%}'.format(self.result_predict_accuracy))
             print("    Prediction precision: ", '{0:.2%}'.format(self.result_predict_precision))
-            print("Prediction avg precision: ", '{0:.2%}'.format(self.result_predict_avg_precision))
             print("          Prediction F-1: ", '{0:.2}'.format(self.result_predict_f1))
             print("      Test ROC_AUC Score: ", '{0:.2}'.format(self.result_predict_roc_auc))
-
-        if self.result_cv_scores is not None:
-            print()
-            print("Cross validation results: ")
-            print()
-            for score_key, score_value in self.result_cv_scores.items():
-                print(f"{score_key}: {np.mean(score_value)} (SD: {np.std(score_value)})")
 
         if self.y_predict_preprocessed is not None:
             skl.metrics.RocCurveDisplay.from_predictions(self.y_predict_preprocessed, self.result_y_predict_predicted)
@@ -276,7 +383,7 @@ class SurveyMLClassifier(SurveyML):
             plt.hist(self.result_y_predict_predicted_proba[(self.y_predict_preprocessed == 1)
                                                            & (self.result_y_predict_predicted == 1)],
                      bins=50, range=(0, 1), label='True positives', alpha=0.7, color='g')
-            plt.axvline(0.5, color='k', linestyle='dashed', linewidth=1)
+            plt.axvline(self.threshold_used, color='k', linestyle='dashed', linewidth=1)
             plt.title("Predicted probabilities for prediction set")
             plt.xlabel('P(Positive)', fontsize=25)
             plt.legend(fontsize=15)
@@ -314,18 +421,25 @@ class SurveyMLClassifier(SurveyML):
             ax.set_title('Precision-recall curve (prediction set)')
             ax.set_ylabel('Precision')
             ax.set_xlabel('Recall')
-            #   add marker for 50% threshold
-            halfway_index = np.argmax(thresholds >= 0.50)
-            plt.axvline(recall[halfway_index], c='grey', ls=':')
-            plt.axhline(precision[halfway_index], c='grey', ls=':')
+            #   add marker for threshold used
+            threshold_index = np.argmax(thresholds >= self.threshold_used)
+            plt.axvline(recall[threshold_index], c='grey', ls=':')
+            plt.axhline(precision[threshold_index], c='grey', ls=':')
             #   display plot
             plt.show()
+
+        if self.result_cv_scores is not None:
+            print("Cross validation results: ")
+            print()
+            for score_key, score_value in self.result_cv_scores.items():
+                print(f"{score_key}: {np.mean(score_value)} (SD: {np.std(score_value)})")
 
     def report_feature_importance(self, importance_array: np.ndarray):
         """
         Report feature importance.
 
-        :param importance_array: The appropriate importance array, depending on the classifier
+        :param importance_array: The appropriate importance array, depending on the classifier (note: use
+            the fitted_estimator attribute to access the fitted model, in the case of calibration)
         :type importance_array: np.ndarray
         """
 
@@ -407,5 +521,63 @@ class SurveyMLClassifier(SurveyML):
         nn_model.add(tf.keras.layers.Dense(1, activation='sigmoid', bias_initializer=output_bias_constant))
 
         # compile and return model
-        nn_model.compile(loss='binary_crossentropy', optimizer=tf.keras.optimizers.legacy.Adam())
+        nn_model.compile(loss='binary_crossentropy', optimizer=tf.keras.optimizers.Adam())
         return nn_model
+
+
+class ThresholdClassifier(skl.base.BaseEstimator, skl.base.ClassifierMixin):
+    """
+    Wrapper for classifiers, to support custom decision threshold (which is inclusive: predicted probabilities at the
+    threshold predict as positive).
+
+    Note: Currently, only binary classification problems are supported.
+    """
+
+    def __init__(self, classifier, threshold: float = 0.5):
+        """
+        Initialize classifier wrapper.
+
+        :param classifier: Classifier to wrap
+        :type classifier: Any
+        :param threshold: Probability threshold to use for binary classification
+        :type threshold: float
+        """
+
+        self.classifier = classifier
+        self.threshold = threshold
+        self.classes_ = np.array([0, 1])
+
+    def fit(self, X, y):
+        """
+        Fit classifier to data.
+        """
+
+        self.classes_ = np.unique(y)
+        return self.classifier.fit(X, y)
+
+    def predict(self, X):
+        """
+        Return binary predictions.
+        """
+
+        # make prediction, inclusive of threshold (those at threshold predict as positive)
+        predicted_ps = self.predict_proba(X)[:, 1]
+        predicted_vals = [1 if predicted_p >= self.threshold else 0 for predicted_p in predicted_ps]
+        return np.array(predicted_vals)
+
+    def decision_function(self, X):
+        """
+        Return decision scores (in this case, probabilities shifted down by the threshold so that negative values
+        are predicted as 0 and positive values are predicted as 1).
+        """
+
+        # rather than using the base classifier's decision_function(), use probabilities shifted down by the
+        # threshold so that all positives are predicted positive and all negatives are predicted negative
+        return self.classifier.predict_proba(X)[:, 1] - self.threshold
+
+    def predict_proba(self, X):
+        """
+        Return prediction probabilities.
+        """
+
+        return self.classifier.predict_proba(X)

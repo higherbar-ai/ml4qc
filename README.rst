@@ -42,13 +42,31 @@ utility classes for working with survey data:
 * ``SurveyML`` provides core functionality, including preprocessing and outlier detection
 * ``SurveyMLClassifier`` builds on ``SurveyML``, adding support for running classification models and reporting out results
 
+While ``SurveyMLClassifier`` supports a variety of approaches, the currently-recommended
+approach to binary classification is as follows:
+
+1. Do *not* reweight for class imbalances; use
+   ``SurveyMLClassifier.cv_for_best_hyperparameters()`` to find the optimal hyperparameters
+   for a given dataset, with *neg_log_loss*, *neg_brier_score*, or *roc_auc* as the CV metric
+   to optimize. This will optimize for an unbiased distribution of estimated probabilities.
+2. Use a ``calibration_method`` (*isotonic* or *sigmoid*) to calibrate the estimated
+   probability distribution.
+3. Almost always (and especially when classes are imbalanced), specify a non-default option
+   for the classification ``threshold`` (and possibly ``threshold_value``), as the
+   default threshold of 0.5 is unlikely to be optimal. When in doubt, use
+   ``threshold='optimal_f'`` to choose the threshold that maximizes the F-1 score.
+
+This is essentially the approach used in the examples linked below.
+
 Examples
 --------
 
 This package is best illustrated by way of example. The following example analyses are available:
 
 * `CATI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb>`_
+* `CATI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb>`_
 * `CAPI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb>`_
+* `CAPI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb>`_
 
 Documentation
 -------------
