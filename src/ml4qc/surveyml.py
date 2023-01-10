@@ -25,6 +25,8 @@ from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest
 
+import ml4qc
+
 
 class SurveyML(object):
     """Base class for using machine learning techniques on survey data."""
@@ -231,3 +233,90 @@ class SurveyML(object):
                 cols_by_type["numeric_other"].append(col)
 
         return cols_by_type
+
+    @staticmethod
+    def benchmark_by_category(x_df: pd.DataFrame, y_df: pd.DataFrame, benchmark_categories: list[str],
+                              random_state: Union[int, np.random.RandomState] = None, n_jobs: int = -1,
+                              verbose: bool = None) -> pd.DataFrame:
+        """
+        Benchmark by category (e.g., by enumerator). Uses K-nearest-neighbor method to score observations as closer
+        or further from the identified category or categories to benchmark against (e.g., one or more star enumerators).
+
+        :param x_df: Full set of features, in a Pandas DataFrame
+        :type x_df: pd.DataFrame
+        :param y_df: Category column for benchmarking, in a Pandas DataFrame
+        :type y_df: pd.DataFrame
+        :param benchmark_categories: List of specific categories to benchmark against (e.g., one or more star enumerator
+            IDs, if benchmarking by enumerator)
+        :type benchmark_categories: list[str]
+        :param random_state: Fixed random state for reproducible results, otherwise None for random execution
+        :type random_state: Union[int, np.random.RandomState]
+        :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
+            leave one CPU free)
+        :type n_jobs: int
+        :param verbose: True to report verbose results with print() calls
+        :type verbose: bool
+        :return: DataFrame with category-specific scores, sorted highest first
+        :rtype: pd.DataFrame
+        """
+
+        y_df["is_benchmark"] = y_df.apply(lambda row: (1 if row.iloc[0] in benchmark_categories else 0), axis=1)
+        target_df = pd.DataFrame(y_df["is_benchmark"])
+        if verbose:
+            print(target_df.is_benchmark.value_counts())
+            print()
+            print(f"Target base rate: {(len(target_df[target_df.is_benchmark == 1]) / len(target_df)) * 100:.2f}%")
+            print()
+
+        # create SurveyMLClassifier object w/ identical training and prediction sets (using prediction mechanics, but
+        # not really for out-of-sample prediction)
+        classifier = ml4qc.SurveyMLClassifier(x_df, target_df, x_predict_df=x_df, cv_when_training=False,
+                                              random_state=random_state, verbose=verbose, n_jobs=n_jobs,
+                                              calibration_method=None, threshold="default")
+
+        # preprocess data
+        # one-hot encode any categorical data, then scale everything
+        transformer = ColumnTransformer(
+            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+              classifier.features_by_type["other"])], remainder='passthrough')
+        preprocessing_pipeline = Pipeline(steps=[
+            ('transform', transformer),
+            ('scale', skl.preprocessing.StandardScaler())
+        ])
+        classifier.preprocess_for_prediction(custom_pipeline=preprocessing_pipeline)
+
+        # fit simple K-nearest-neighbors model with 11 neighbors averaged by distance, with the nearest neighbor
+        # (oneself) excluded (so this effectively becomes K=10)
+        classifier_knn = skl.neighbors.KNeighborsClassifier(n_neighbors=11,
+                                                            weights=SurveyML.inverse_distance_ignoring_closest)
+        classifier.run_prediction_model(classifier_knn)
+
+        # summarize predicted probabilities by enumerator
+        result_df = pd.DataFrame(y_df.iloc[:, 0])
+        result_df["score"] = classifier.result_y_predict_predicted_proba
+
+        return result_df.groupby(result_df.columns[0])[['score']].mean().sort_values("score", ascending=False)
+
+    @staticmethod
+    def inverse_distance_ignoring_closest(distances):
+        """
+        Distance weighting function that sets closest distance to 0.0 and otherwise inverses distances. Useful for
+        cases where you're using nearest-neighbor methods but predicting from the training set (in which the closest
+        match will be yourself).
+        :param distances: Array of distances (assumed 1D or 2D)
+        :type distances: Any
+        :return: Array of weights with 0.0 for smallest distance in each set, otherwise inverses of weights (same shape
+            as the distances array passed in)
+        :rtype: Any
+        """
+
+        # always convert distances to floats
+        float_distances = distances.astype(float)
+        # drop smallest distance to 0 in order to ignore closest neighbor
+        if float_distances.ndim > 1:
+            float_distances[np.arange(len(float_distances)), float_distances.argmin(axis=1)] = 0.0
+        else:
+            float_distances[float_distances.argmin()] = 0.0
+        # weight non-zero distances as reciprocal
+        weights = np.reciprocal(float_distances, out=float_distances, where=float_distances != 0.0)
+        return weights
