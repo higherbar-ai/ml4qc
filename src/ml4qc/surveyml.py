@@ -24,8 +24,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
 from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest
-
-import ml4qc
+from sklearn.linear_model import LogisticRegression
+from k_means_constrained import KMeansConstrained
 
 
 class SurveyML(object):
@@ -192,6 +192,290 @@ class SurveyML(object):
 
         return outlier_df
 
+    def identify_clusters(self, min_clusters: int = 2, max_clusters: int = 10, constrain_cluster_size: bool = False,
+                          variance_to_retain: float = 1.0, separate_outliers: bool = True) -> pd.DataFrame:
+        """
+        Identify clusters in the full dataset (training+prediction together).
+
+        :param min_clusters: Minimum number of clusters
+        :type min_clusters: int
+        :param max_clusters: Maximum number of clusters
+        :type max_clusters: int
+        :param constrain_cluster_size: True to constrain cluster size such that clusters are at least 1/2 the average
+            size and at most 2x the average size
+        :type constrain_cluster_size: bool
+        :param variance_to_retain: Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+            reduction and 1.0 to use all features
+        :type variance_to_retain: float
+        :param separate_outliers: True to separate outliers into their own cluster (can help to better define other
+            clusters)
+        :type separate_outliers: bool
+        :return: DataFrame with a cluster column that identifies clusters, indexed with the same index as the
+            training and/or prediction data
+        :rtype: pd.DataFrame
+        """
+
+        # confirm parameters are valid
+        if min_clusters < 2 or min_clusters > max_clusters:
+            raise ValueError("The min_clusters parameter must be >= 2 and <= max_clusters.")
+        if max_clusters < 2 or max_clusters > 1000:
+            raise ValueError("The max_clusters parameter must be >= 2 and <= 1,000.")
+
+        # identify outliers, if we're meant to separate them
+        if separate_outliers:
+            if self.verbose:
+                print("Identifying outliers...")
+            outliers_df = self.identify_outliers()
+            if self.verbose:
+                print(f"{outliers_df.is_outlier.sum()} outliers detected, will be put in separate cluster (-1).")
+                print()
+            # drop down to only outliers, set "is_outlier" column to -1 and rename to "cluster"
+            outliers_df = outliers_df[outliers_df.is_outlier == 1]
+            outliers_df.rename(columns={'is_outlier': 'cluster'}, inplace=True)
+            outliers_df.cluster = -1
+        else:
+            outliers_df = None
+
+        # prep feature DataFrame with all data to consider
+        x_all_df = pd.concat([self.x_train_df, self.x_predict_df])
+        if outliers_df is not None:
+            # if we're separating outliers, drop them from this dataset
+            x_all_df = x_all_df[~x_all_df.index.isin(outliers_df.index)]
+        x_len = len(x_all_df)
+
+        # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
+        transformer = ColumnTransformer(
+            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+              self.features_by_type["other"])], remainder='passthrough')
+        if variance_to_retain < 1.0:
+            preprocessing_pipeline = Pipeline(steps=[
+                ('transform', transformer),
+                ('scale', skl.preprocessing.StandardScaler()),
+                ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
+            ])
+        else:
+            preprocessing_pipeline = Pipeline(steps=[
+                ('transform', transformer),
+                ('scale', skl.preprocessing.StandardScaler())
+            ])
+        if self.verbose:
+            print(f"  Starting features shape: {x_all_df.shape}")
+        x_data = preprocessing_pipeline.fit_transform(x_all_df)
+        if self.verbose:
+            print(f"     Final features shape: {x_data.shape}")
+            print()
+
+        # generate clusters for range of n_clusters options, keeping best set of labels based on silhouette coefficient
+        if self.verbose:
+            print(f"Choosing best silhouette coefficient for n_clusters between {min_clusters} and {max_clusters}...")
+        best_score = -1
+        best_labels = None
+        for n_clusters in range(min_clusters, max_clusters+1):
+            if constrain_cluster_size:
+                # insist on reasonably-balanced cluster sizes: no clusters smaller than 1/2 average cluster size and no
+                # clusters larger than 2x average cluster size
+                min_cluster = int((x_len / n_clusters) / 2)
+                max_cluster = min(int((x_len / n_clusters) * 2), x_len)
+            else:
+                min_cluster = None
+                max_cluster = None
+            labels = KMeansConstrained(n_clusters=n_clusters, size_min=min_cluster, size_max=max_cluster,
+                                       random_state=self.random_state).fit_predict(x_data)
+            score = skl.metrics.silhouette_score(x_data, labels)
+            if best_score == -1 or score > best_score:
+                best_labels = labels
+                best_score = score
+            if self.verbose:
+                print()
+                print(f"Silhouette coefficient for {n_clusters} clusters: {score}")
+                print(pd.DataFrame(labels).iloc[:, 0].value_counts())
+
+        # take best set of cluster labels, and merge in outliers if they'd been separated
+        result_df = pd.DataFrame(best_labels, columns=['cluster']).set_index(x_all_df.index.values)
+        if outliers_df is not None:
+            result_df = pd.concat([result_df, outliers_df])
+
+        return result_df
+
+    def benchmark_by_category(self, category_df: pd.DataFrame, benchmark_categories: list[str], method: str = 'knn',
+                              n_nearest_neighbors: int = 10, reg_strength: float = 0.0001,
+                              variance_to_retain: float = 1.0) -> pd.DataFrame:
+        """
+        Benchmark by category (e.g., by enumerator) using the full dataset (training+prediction together). Uses
+        classification method to score observations as more or less like the identified category or categories
+        to benchmark against (e.g., one or more star enumerators).
+
+        :param category_df: Category column for benchmarking, in a Pandas DataFrame indexed with the same index as the
+            training and prediction data used to initialize the object
+        :type category_df: pd.DataFrame
+        :param benchmark_categories: List of specific categories to benchmark against (e.g., one or more star enumerator
+            IDs, if benchmarking by enumerator)
+        :type benchmark_categories: list[str]
+        :param method: Method to use for scoring ('knn' for K nearest neighbors, 'logistic' for logistic regression)
+        :type method: str
+        :param n_nearest_neighbors: If method is 'knn', number of nearest neighbors to consider (not including self);
+            the largest this is, the more it skews toward categories with more observations in the dataset
+        :type n_nearest_neighbors: int
+        :param reg_strength: If method is 'logistic', C value for regularization strength to use for L2 regularization;
+            given that we're classifying within the training set, a larger value will tend toward a perfect fit
+        :type reg_strength: float
+        :param variance_to_retain: Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+            reduction and 1.0 to use all features
+        :type variance_to_retain: float
+        :return: DataFrame with category-specific scores, sorted highest first
+        :rtype: pd.DataFrame
+        """
+
+        # prep target DataFrame with observations in benchmark categories coded as 1 vs. 0
+        category_df = category_df.sort_index()
+        category_df["is_benchmark"] = category_df.apply(lambda row: (1 if row.iloc[0] in benchmark_categories else 0),
+                                                        axis=1)
+        target_df = pd.DataFrame(category_df["is_benchmark"]).sort_index()
+        if self.verbose:
+            print(target_df.is_benchmark.value_counts())
+            print()
+            print(f"Target base rate: {(len(target_df[target_df.is_benchmark == 1]) / len(target_df)) * 100:.2f}%")
+            print()
+
+        # calculate predicted probabilities for all observations
+        if method == 'knn':
+            classifier = skl.neighbors.KNeighborsClassifier(n_neighbors=n_nearest_neighbors + 1,
+                                                            weights=SurveyML.inverse_distance_ignoring_closest)
+        elif method == 'logistic':
+            classifier = LogisticRegression(random_state=self.random_state, max_iter=2000, penalty="l2", C=reg_strength)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+        predictions, predicted_proba = self._classify_with_all_data(target_df=target_df, classifier=classifier,
+                                                                    variance_to_retain=variance_to_retain)
+
+        # summarize predicted probabilities by enumerator
+        result_df = pd.DataFrame(category_df.iloc[:, 0])
+        result_df["score"] = predicted_proba[:, 1]
+
+        return result_df.groupby(result_df.columns[0])[['score']].mean().sort_values("score", ascending=False)
+
+    def classify_by_category(self, category_df: pd.DataFrame, method: str = 'knn', n_nearest_neighbors: int = 10,
+                             reg_strength: float = 0.0001, variance_to_retain: float = 1.0) -> pd.DataFrame:
+        """
+        Classify by category (e.g., by enumerator) using the full dataset (training+prediction together).
+
+        :param category_df: Category column for classification, in a Pandas DataFrame indexed with the same index as the
+            training and prediction data used to initialize the object
+        :type category_df: pd.DataFrame
+        :param method: Method to use for classification ('knn' for K nearest neighbors, 'logistic' for logistic
+            regression)
+        :type method: str
+        :param n_nearest_neighbors: If method is 'knn', number of nearest neighbors to consider (not including self);
+            the largest this is, the more it skews toward categories with more observations in the dataset
+        :param reg_strength: If method is 'logistic', C value for regularization strength to use for L2 regularization;
+            given that we're classifying within the training set, a larger value will tend toward a perfect fit
+        :type reg_strength: float
+        :param variance_to_retain: Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+            reduction and 1.0 to use all features
+        :type variance_to_retain: float
+        :return: DataFrame with category predictions for each observation in the dataset
+        :rtype: pd.DataFrame
+        """
+
+        # prep target DataFrame
+        target_df = category_df.sort_index()
+
+        # calculate predicted categories for all observations
+        if method == 'knn':
+            classifier = skl.neighbors.KNeighborsClassifier(n_neighbors=n_nearest_neighbors + 1,
+                                                            weights=SurveyML.inverse_distance_ignoring_closest)
+        elif method == 'logistic':
+            classifier = LogisticRegression(random_state=self.random_state, max_iter=2000, penalty="l2", C=reg_strength)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
+        predictions, predicted_proba = self._classify_with_all_data(target_df=target_df, classifier=classifier,
+                                                                    variance_to_retain=variance_to_retain)
+
+        # combine predictions with original categories and return
+        result_df = pd.DataFrame(category_df)
+        result_df["predicted_category"] = predictions
+        return result_df
+
+    def _classify_with_all_data(self, target_df: pd.DataFrame, classifier,
+                                variance_to_retain: float = 1.0) -> (np.ndarray, np.ndarray):
+        """
+        Run classifier using the full dataset (training+prediction together).
+
+        :param target_df: Target classes for classification task
+        :type target_df: pd.DataFrame
+        :param classifier: Classifier to use
+        :type classifier: Any
+        :param variance_to_retain: Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+            reduction and 1.0 to use all features
+        :type variance_to_retain: float
+        :return: Predicted label array and class probability array (probabilities ordered by classes in lexicographic
+            order)
+        :rtype: (np.ndarray, np.ndarray)
+        """
+
+        # prep feature DataFrame with all data, confirm our indexes match
+        x_all_df = pd.concat([self.x_train_df, self.x_predict_df]).sort_index()
+        if not np.array_equal(np.array(x_all_df.index), np.array(target_df.index)):
+            raise ValueError("The category_df parameter must include all items in training and prediction DataFrames, "
+                             "with the same index values.")
+
+        # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
+        transformer = ColumnTransformer(
+            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+              self.features_by_type["other"])], remainder='passthrough')
+        if variance_to_retain < 1.0:
+            preprocessing_pipeline = Pipeline(steps=[
+                ('transform', transformer),
+                ('scale', skl.preprocessing.StandardScaler()),
+                ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
+            ])
+        else:
+            preprocessing_pipeline = Pipeline(steps=[
+                ('transform', transformer),
+                ('scale', skl.preprocessing.StandardScaler())
+            ])
+        if self.verbose:
+            print(f"  Starting features shape: {x_all_df.shape}")
+        x_data = preprocessing_pipeline.fit_transform(x_all_df)
+        if self.verbose:
+            print(f"     Final features shape: {x_data.shape}")
+            print()
+
+        # fit simple K-nearest-neighbors model with K neighbors averaged by distance (where K includes oneself, so
+        # effectively K-1 neighbors once self is weighted down to 0)
+        if self.verbose:
+            print("Fitting model...")
+            print()
+        classifier.fit(x_data, target_df.values.ravel())
+
+        # return predicted probabilities
+        return classifier.predict(x_data), classifier.predict_proba(x_data)
+
+    @staticmethod
+    def inverse_distance_ignoring_closest(distances):
+        """
+        Distance weighting function that sets closest distance to 0.0 and otherwise inverses distances. Useful for
+        cases where you're using nearest-neighbor methods but predicting from the training set (in which the closest
+        match will be yourself).
+
+        :param distances: Array of distances (assumed 1D or 2D)
+        :type distances: Any
+        :return: Array of weights with 0.0 for smallest distance in each set, otherwise inverses of weights (same shape
+            as the distances array passed in)
+        :rtype: Any
+        """
+
+        # always convert distances to floats
+        float_distances = distances.astype(float)
+        # drop smallest distance to 0 in order to ignore closest neighbor
+        if float_distances.ndim > 1:
+            float_distances[np.arange(len(float_distances)), float_distances.argmin(axis=1)] = 0.0
+        else:
+            float_distances[float_distances.argmin()] = 0.0
+        # weight non-zero distances as reciprocal
+        weights = np.reciprocal(float_distances, out=float_distances, where=float_distances != 0.0)
+        return weights
+
     def features_by_type(self) -> dict:
         """
         Get features by data type.
@@ -233,90 +517,3 @@ class SurveyML(object):
                 cols_by_type["numeric_other"].append(col)
 
         return cols_by_type
-
-    @staticmethod
-    def benchmark_by_category(x_df: pd.DataFrame, y_df: pd.DataFrame, benchmark_categories: list[str],
-                              random_state: Union[int, np.random.RandomState] = None, n_jobs: int = -1,
-                              verbose: bool = None) -> pd.DataFrame:
-        """
-        Benchmark by category (e.g., by enumerator). Uses K-nearest-neighbor method to score observations as closer
-        or further from the identified category or categories to benchmark against (e.g., one or more star enumerators).
-
-        :param x_df: Full set of features, in a Pandas DataFrame
-        :type x_df: pd.DataFrame
-        :param y_df: Category column for benchmarking, in a Pandas DataFrame
-        :type y_df: pd.DataFrame
-        :param benchmark_categories: List of specific categories to benchmark against (e.g., one or more star enumerator
-            IDs, if benchmarking by enumerator)
-        :type benchmark_categories: list[str]
-        :param random_state: Fixed random state for reproducible results, otherwise None for random execution
-        :type random_state: Union[int, np.random.RandomState]
-        :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
-            leave one CPU free)
-        :type n_jobs: int
-        :param verbose: True to report verbose results with print() calls
-        :type verbose: bool
-        :return: DataFrame with category-specific scores, sorted highest first
-        :rtype: pd.DataFrame
-        """
-
-        y_df["is_benchmark"] = y_df.apply(lambda row: (1 if row.iloc[0] in benchmark_categories else 0), axis=1)
-        target_df = pd.DataFrame(y_df["is_benchmark"])
-        if verbose:
-            print(target_df.is_benchmark.value_counts())
-            print()
-            print(f"Target base rate: {(len(target_df[target_df.is_benchmark == 1]) / len(target_df)) * 100:.2f}%")
-            print()
-
-        # create SurveyMLClassifier object w/ identical training and prediction sets (using prediction mechanics, but
-        # not really for out-of-sample prediction)
-        classifier = ml4qc.SurveyMLClassifier(x_df, target_df, x_predict_df=x_df, cv_when_training=False,
-                                              random_state=random_state, verbose=verbose, n_jobs=n_jobs,
-                                              calibration_method=None, threshold="default")
-
-        # preprocess data
-        # one-hot encode any categorical data, then scale everything
-        transformer = ColumnTransformer(
-            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-              classifier.features_by_type["other"])], remainder='passthrough')
-        preprocessing_pipeline = Pipeline(steps=[
-            ('transform', transformer),
-            ('scale', skl.preprocessing.StandardScaler())
-        ])
-        classifier.preprocess_for_prediction(custom_pipeline=preprocessing_pipeline)
-
-        # fit simple K-nearest-neighbors model with 11 neighbors averaged by distance, with the nearest neighbor
-        # (oneself) excluded (so this effectively becomes K=10)
-        classifier_knn = skl.neighbors.KNeighborsClassifier(n_neighbors=11,
-                                                            weights=SurveyML.inverse_distance_ignoring_closest)
-        classifier.run_prediction_model(classifier_knn)
-
-        # summarize predicted probabilities by enumerator
-        result_df = pd.DataFrame(y_df.iloc[:, 0])
-        result_df["score"] = classifier.result_y_predict_predicted_proba
-
-        return result_df.groupby(result_df.columns[0])[['score']].mean().sort_values("score", ascending=False)
-
-    @staticmethod
-    def inverse_distance_ignoring_closest(distances):
-        """
-        Distance weighting function that sets closest distance to 0.0 and otherwise inverses distances. Useful for
-        cases where you're using nearest-neighbor methods but predicting from the training set (in which the closest
-        match will be yourself).
-        :param distances: Array of distances (assumed 1D or 2D)
-        :type distances: Any
-        :return: Array of weights with 0.0 for smallest distance in each set, otherwise inverses of weights (same shape
-            as the distances array passed in)
-        :rtype: Any
-        """
-
-        # always convert distances to floats
-        float_distances = distances.astype(float)
-        # drop smallest distance to 0 in order to ignore closest neighbor
-        if float_distances.ndim > 1:
-            float_distances[np.arange(len(float_distances)), float_distances.argmin(axis=1)] = 0.0
-        else:
-            float_distances[float_distances.argmin()] = 0.0
-        # weight non-zero distances as reciprocal
-        weights = np.reciprocal(float_distances, out=float_distances, where=float_distances != 0.0)
-        return weights

@@ -39,7 +39,7 @@ Overview
 The ``ml4qc`` package builds on the `scikit-learn <https://scikit-learn.org/>`_ toolset. It includes the following
 utility classes for working with survey data:
 
-* ``SurveyML`` provides core functionality, including preprocessing and outlier detection
+* ``SurveyML`` provides core functionality, including preprocessing, outlier detection, and cluster analysis
 * ``SurveyMLClassifier`` builds on ``SurveyML``, adding support for running classification models and reporting out results
 
 While ``SurveyMLClassifier`` supports a variety of approaches, the currently-recommended
