@@ -17,3 +17,6 @@ seaborn~=0.12
 matplotlib~=3.6
 tensorflow~=2.11; sys_platform != 'darwin' or platform_machine != 'arm64'
 tensorflow-macos~=2.11; sys_platform == 'darwin' and platform_machine == 'arm64'
+importlib_metadata~=5.1.0
+k-means-constrained~=0.7
+sphinx_rtd_theme~=1.1.1
