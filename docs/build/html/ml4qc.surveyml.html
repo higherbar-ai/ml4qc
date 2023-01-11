@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ml4qc.surveyml module &mdash; ml4qc 0.1.6 documentation</title>
+  <title>ml4qc.surveyml module &mdash; ml4qc 0.1.7 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -112,6 +112,65 @@ leave one CPU free)</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.benchmark_by_category">
+<span class="sig-name descname"><span class="pre">benchmark_by_category</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">category_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">benchmark_categories</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'knn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_nearest_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_strength</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_to_retain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.benchmark_by_category" title="Permalink to this definition"></a></dt>
+<dd><p>Benchmark by category (e.g., by enumerator) using the full dataset (training+prediction together). Uses
+classification method to score observations as more or less like the identified category or categories
+to benchmark against (e.g., one or more star enumerators).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>category_df</strong> (<em>pd.DataFrame</em>) – Category column for benchmarking, in a Pandas DataFrame indexed with the same index as the
+training and prediction data used to initialize the object</p></li>
+<li><p><strong>benchmark_categories</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – List of specific categories to benchmark against (e.g., one or more star enumerator
+IDs, if benchmarking by enumerator)</p></li>
+<li><p><strong>method</strong> (<em>str</em>) – Method to use for scoring (‘knn’ for K nearest neighbors, ‘logistic’ for logistic regression)</p></li>
+<li><p><strong>n_nearest_neighbors</strong> (<em>int</em>) – If method is ‘knn’, number of nearest neighbors to consider (not including self);
+the largest this is, the more it skews toward categories with more observations in the dataset</p></li>
+<li><p><strong>reg_strength</strong> (<em>float</em>) – If method is ‘logistic’, C value for regularization strength to use for L2 regularization;
+given that we’re classifying within the training set, a larger value will tend toward a perfect fit</p></li>
+<li><p><strong>variance_to_retain</strong> (<em>float</em>) – Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+reduction and 1.0 to use all features</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>DataFrame with category-specific scores, sorted highest first</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.classify_by_category">
+<span class="sig-name descname"><span class="pre">classify_by_category</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">category_df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'knn'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_nearest_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reg_strength</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_to_retain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.classify_by_category" title="Permalink to this definition"></a></dt>
+<dd><p>Classify by category (e.g., by enumerator) using the full dataset (training+prediction together).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>category_df</strong> (<em>pd.DataFrame</em>) – Category column for classification, in a Pandas DataFrame indexed with the same index as the
+training and prediction data used to initialize the object</p></li>
+<li><p><strong>method</strong> (<em>str</em>) – Method to use for classification (‘knn’ for K nearest neighbors, ‘logistic’ for logistic
+regression)</p></li>
+<li><p><strong>n_nearest_neighbors</strong> – If method is ‘knn’, number of nearest neighbors to consider (not including self);
+the largest this is, the more it skews toward categories with more observations in the dataset</p></li>
+<li><p><strong>reg_strength</strong> (<em>float</em>) – If method is ‘logistic’, C value for regularization strength to use for L2 regularization;
+given that we’re classifying within the training set, a larger value will tend toward a perfect fit</p></li>
+<li><p><strong>variance_to_retain</strong> (<em>float</em>) – Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+reduction and 1.0 to use all features</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>DataFrame with category predictions for each observation in the dataset</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.columns_by_type">
 <em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">columns_by_type</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.columns_by_type" title="Permalink to this definition"></a></dt>
 <dd><p>Get DataFrame columns by data type.</p>
@@ -145,6 +204,33 @@ leave one CPU free)</p></li>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.identify_clusters">
+<span class="sig-name descname"><span class="pre">identify_clusters</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">min_clusters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_clusters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">constrain_cluster_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">variance_to_retain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">separate_outliers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.identify_clusters" title="Permalink to this definition"></a></dt>
+<dd><p>Identify clusters in the full dataset (training+prediction together).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>min_clusters</strong> (<em>int</em>) – Minimum number of clusters</p></li>
+<li><p><strong>max_clusters</strong> (<em>int</em>) – Maximum number of clusters</p></li>
+<li><p><strong>constrain_cluster_size</strong> (<em>bool</em>) – True to constrain cluster size such that clusters are at least 1/2 the average
+size and at most 2x the average size</p></li>
+<li><p><strong>variance_to_retain</strong> (<em>float</em>) – Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+reduction and 1.0 to use all features</p></li>
+<li><p><strong>separate_outliers</strong> (<em>bool</em>) – True to separate outliers into their own cluster (can help to better define other
+clusters)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>DataFrame with a cluster column that identifies clusters, indexed with the same index as the
+training and/or prediction data</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.identify_outliers">
 <span class="sig-name descname"><span class="pre">identify_outliers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">contamination</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Optional</span><span class="p"><span class="pre">[</span></span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataFrame</span></span></span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.identify_outliers" title="Permalink to this definition"></a></dt>
 <dd><p>Identify outliers in the full dataset (training+prediction together).</p>
@@ -157,6 +243,26 @@ leave one CPU free)</p></li>
 </dd>
 <dt class="field-odd">Return type</dt>
 <dd class="field-odd"><p>pd.DataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="ml4qc.surveyml.SurveyML.inverse_distance_ignoring_closest">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">inverse_distance_ignoring_closest</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">distances</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#ml4qc.surveyml.SurveyML.inverse_distance_ignoring_closest" title="Permalink to this definition"></a></dt>
+<dd><p>Distance weighting function that sets closest distance to 0.0 and otherwise inverses distances. Useful for
+cases where you’re using nearest-neighbor methods but predicting from the training set (in which the closest
+match will be yourself).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>distances</strong> (<em>Any</em>) – Array of distances (assumed 1D or 2D)</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Array of weights with 0.0 for smallest distance in each set, otherwise inverses of weights (same shape
+as the distances array passed in)</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>Any</p>
 </dd>
 </dl>
 </dd></dl>
