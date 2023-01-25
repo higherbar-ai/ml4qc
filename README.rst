@@ -65,6 +65,7 @@ This package is best illustrated by way of example. The following example analys
 
 * `CATI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb>`_
 * `CATI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb>`_
+* `CATI3 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati3-example.ipynb>`_
 * `CAPI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb>`_
 * `CAPI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb>`_
 
