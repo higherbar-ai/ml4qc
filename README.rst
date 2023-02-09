@@ -4,9 +4,21 @@ ml4qc
 
 The ``ml4qc`` Python package offers a toolkit for employing machine learning technologies
 in survey data quality control. Among other things, it helps to extend
-`the surveydata package <https://github.com/orangechairlabs/py-surveydata>`_, advance `SurveyCTO's
-machine learning roadmap <https://www.surveycto.com/blog/machine-learning-for-quality-control/>`_,
-and contribute to research like the following:
+`the surveydata package <https://github.com/orangechairlabs/py-surveydata>`_ and advance `SurveyCTO's
+machine learning roadmap <https://www.surveycto.com/blog/machine-learning-for-quality-control/>`_.
+See further below for more about the research program and specifics on the package.
+
+Installation
+------------
+
+Installing the latest version with pip::
+
+    pip install ml4qc
+
+Overview of research program
+----------------------------
+
+The working title and abstract for the overarching research program is as follows:
 
     **Can machine learning aid survey data quality-control efforts, even without access to actual
     survey data?**
@@ -17,24 +29,36 @@ and contribute to research like the following:
     field-by-field analysis to check for outliers, enumerator effects, and unexpected patterns,
     newer machine-learning-based methods allow for a more holistic evaluation of interviews. ML
     methods also allow for human review to train models that can then predict the results of
-    review, increasingly focusing review time on potential problems. In this paper, we present the
-    results of a collaboration between research and practice that explored the potential of
-    ML-based methods to direct and supplement QC efforts in several international settings. In
-    particular, we look at the potential for privacy-protecting approaches that allow ML models to
-    be trained and utilized without ever exposing personally-identifiable data — or, indeed, any
-    survey data at all — to ML systems or analysts. Specifically, metadata and paradata, including
-    rich but non-identifying data from mobile device sensors, is used in lieu of
-    potentially-sensitive survey data.
+    review, increasingly focusing review time on potential problems. In this research program, we
+    explore the potential of ML-based methods to direct and supplement QC efforts across
+    international settings. In particular, we look at the potential for privacy-protecting
+    approaches that allow ML models to be trained and utilized without ever exposing
+    personally-identifiable data — or, indeed, any survey data at all — to ML systems or analysts.
+    Specifically, metadata and paradata, including rich but non-identifying data from mobile device
+    sensors, is used in lieu of potentially-sensitive survey data.
 
-Installation
-------------
+We currently envision three phases to the work:
 
-Installing the latest version with pip::
+* Phase 1: Foundation-building and early exploration
+    * **Goal 1**: Establish a flexible codebase to serve as a platform for exploration and analysis
+    * **Goal 2**: Test whether popular supervised prediction models work to predict quality classifications when trained
+      on meta/paradata
+    * **Goal 3**: Test whether popular unsupervised models can identify useful patterns in enumerator effects
+* Phase 2: Dig deeper across settings, refine tools and understanding
+    * **Goal 1**: Tune models and features for supervised models, establish links between review processes, quality
+      classifications, and effectiveness
+    * **Goal 2**: Find useful structure for measuring and reporting enumerator effects, how to control out nonrandom
+      sources of variation
+    * **Goal 3**: For all models, establish requirements for training data (e.g., sample sizes)
+* Phase 3: Test the potential for transfer learning, further refine tools
+    * **Goal 1**: Develop instrument-agnostic meta/paradata format and test the potential for transfer learning to
+      enable useful results earlier in the launch of a new survey
+    * **Goal 2**: Support continued scaling of experimentation across more settings with easy, production-ready tools
 
-    pip install ml4qc
+We are currently in Phase 1. See the "Examples" section below for early results.
 
-Overview
---------
+Overview of Python package
+--------------------------
 
 The ``ml4qc`` package builds on the `scikit-learn <https://scikit-learn.org/>`_ toolset. It includes the following
 utility classes for working with survey data:
@@ -64,10 +88,40 @@ Examples
 This package is best illustrated by way of example. The following example analyses are available:
 
 * `CATI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb>`_
+    * **Setting**: CATI survey in Afghanistan
+    * **Review and quality classification strategy**: Holistic review of all submissions
+    * **Supervised results**: Precision for predicting rejected submission ranges from 10% to 43% (against a base rate of
+      3.8%)
+    * **Unsupervised results**: Significant enumerator effects discovered and summarized
 * `CATI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb>`_
+    * **Setting**: CATI survey in Afghanistan
+    * **Review and quality classification strategy**: Holistic review of all submissions
+    * **Supervised results**: Precision for predicting rejected submission ranges from 20-50% (against a base rate of 4.7%),
+      but wide variation due to very small training sample
+    * **Unsupervised results**: Significant enumerator effects discovered and summarized, but not at cluster level
 * `CATI3 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati3-example.ipynb>`_
+    * **Setting**: CATI survey in Afghanistan
+    * **Review and quality classification strategy**: All completed interviews classified the same, all incomplete
+      interviews rejected
+    * **Supervised results**: Because there are clear meta/paradata differences between complete and incomplete interviews,
+      all ML models achieve 100% precision in predicting rejection
+    * **Unsupervised results**: Very significant enumerator effects discovered and summarized
 * `CAPI1 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb>`_
+    * **Setting**: CAPI survey in Afghanistan
+    * **Review and quality classification strategy**: Holistic review of all submissions
+    * **Supervised results**: With only 5 rejected submissions, instead sought to predict "not approved as GOOD quality”
+      with a base rate of 70% (resting almost completely on the distinction between a “GOOD” and an “OKAY” quality
+      rating); none of the models succeed in predicting the distinction and it's not clear that a larger sample size
+      would help
+    * **Unsupervised results**: Very significant enumerator effects discovered and summarized
 * `CAPI2 analysis <https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb>`_
+    * **Setting**: CAPI survey in Ethiopia
+    * **Review and quality classification strategy**: Submissions flagged with automated statistical checks at the question
+      level, plus randomly-selected interviews, reviewed for individual responses in need of correction; those that
+      require correction classified as "OKAY" (vs. "GOOD") quality
+    * **Supervised results**: Full results still TBD, but predictive results poor overall, though slightly better with
+      structural models (logistic regression and neural networks)
+    * **Unsupervised results**: Very significant enumerator effects discovered and summarized, but not at cluster level
 
 Documentation
 -------------
