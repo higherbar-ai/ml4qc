@@ -64,7 +64,8 @@ The ``ml4qc`` package builds on the `scikit-learn <https://scikit-learn.org/>`_ 
 utility classes for working with survey data:
 
 * ``SurveyML`` provides core functionality, including preprocessing, outlier detection, and cluster analysis
-* ``SurveyMLClassifier`` builds on ``SurveyML``, adding support for running classification models and reporting out results
+* ``SurveyMLClassifier`` builds on ``SurveyML``, adding support for running classification models and reporting out
+  results
 
 While ``SurveyMLClassifier`` supports a variety of approaches, the currently-recommended
 approach to binary classification is as follows:
@@ -81,6 +82,12 @@ approach to binary classification is as follows:
    ``threshold='optimal_f'`` to choose the threshold that maximizes the F-1 score.
 
 This is essentially the approach used in the examples linked below.
+
+When there are nonrandom aspects to interview assignment, it is also recommended to initialize ``SurveyMLClassifier``
+with a list of ``control_features`` to control out as much of the nonrandom-assignment effects as possible. During
+pre-processing, ``control_features`` will be used in OLS regressions to predict each other feature value, and it will
+be the residuals that are used in further analysis. This can be particularly important in distinguishing enumerator
+effects from the effects of nonrandom assignment. See the ``CAPI2`` example linked below.
 
 Examples
 --------

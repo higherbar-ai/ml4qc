@@ -4,7 +4,7 @@
   <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ml4qc Python Package Documentation &mdash; ml4qc 0.1.8 documentation</title>
+  <title>ml4qc Python Package Documentation &mdash; ml4qc 0.1.9 documentation</title>
       <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
       <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
   <!--[if lt IE 9]>
@@ -71,9 +71,19 @@
 <h1>ml4qc Python Package Documentation<a class="headerlink" href="#ml4qc-python-package-documentation" title="Permalink to this heading"></a></h1>
 <p>The <code class="docutils literal notranslate"><span class="pre">ml4qc</span></code> Python package offers a toolkit for employing machine learning technologies
 in survey data quality control. Among other things, it helps to extend
-<a class="reference external" href="https://github.com/orangechairlabs/py-surveydata">the surveydata package</a>, advance <a class="reference external" href="https://www.surveycto.com/blog/machine-learning-for-quality-control/">SurveyCTO’s
-machine learning roadmap</a>,
-and contribute to research like the following:</p>
+<a class="reference external" href="https://github.com/orangechairlabs/py-surveydata">the surveydata package</a> and advance <a class="reference external" href="https://www.surveycto.com/blog/machine-learning-for-quality-control/">SurveyCTO’s
+machine learning roadmap</a>.
+See further below for more about the research program and specifics on the package.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h2>
+<p>Installing the latest version with pip:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">ml4qc</span>
+</pre></div>
+</div>
+</section>
+<section id="overview-of-research-program">
+<h2>Overview of research program<a class="headerlink" href="#overview-of-research-program" title="Permalink to this heading"></a></h2>
+<p>The working title and abstract for the overarching research program is as follows:</p>
 <blockquote>
 <div><p><strong>Can machine learning aid survey data quality-control efforts, even without access to actual
 survey data?</strong></p>
@@ -83,29 +93,57 @@ While traditional statistical methods of directing quality-control efforts often
 field-by-field analysis to check for outliers, enumerator effects, and unexpected patterns,
 newer machine-learning-based methods allow for a more holistic evaluation of interviews. ML
 methods also allow for human review to train models that can then predict the results of
-review, increasingly focusing review time on potential problems. In this paper, we present the
-results of a collaboration between research and practice that explored the potential of
-ML-based methods to direct and supplement QC efforts in several international settings. In
-particular, we look at the potential for privacy-protecting approaches that allow ML models to
-be trained and utilized without ever exposing personally-identifiable data — or, indeed, any
-survey data at all — to ML systems or analysts. Specifically, metadata and paradata, including
-rich but non-identifying data from mobile device sensors, is used in lieu of
-potentially-sensitive survey data.</p>
+review, increasingly focusing review time on potential problems. In this research program, we
+explore the potential of ML-based methods to direct and supplement QC efforts across
+international settings. In particular, we look at the potential for privacy-protecting
+approaches that allow ML models to be trained and utilized without ever exposing
+personally-identifiable data — or, indeed, any survey data at all — to ML systems or analysts.
+Specifically, metadata and paradata, including rich but non-identifying data from mobile device
+sensors, is used in lieu of potentially-sensitive survey data.</p>
 </div></blockquote>
-<section id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h2>
-<p>Installing the latest version with pip:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">pip</span> <span class="n">install</span> <span class="n">ml4qc</span>
-</pre></div>
-</div>
+<p>We currently envision three phases to the work:</p>
+<ul class="simple">
+<li><dl class="simple">
+<dt>Phase 1: Foundation-building and early exploration</dt><dd><ul>
+<li><p><strong>Goal 1</strong>: Establish a flexible codebase to serve as a platform for exploration and analysis</p></li>
+<li><p><strong>Goal 2</strong>: Test whether popular supervised prediction models work to predict quality classifications when trained
+on meta/paradata</p></li>
+<li><p><strong>Goal 3</strong>: Test whether popular unsupervised models can identify useful patterns in enumerator effects</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Phase 2: Dig deeper across settings, refine tools and understanding</dt><dd><ul>
+<li><p><strong>Goal 1</strong>: Tune models and features for supervised models, establish links between review processes, quality
+classifications, and effectiveness</p></li>
+<li><p><strong>Goal 2</strong>: Find useful structure for measuring and reporting enumerator effects, how to control out nonrandom
+sources of variation</p></li>
+<li><p><strong>Goal 3</strong>: For all models, establish requirements for training data (e.g., sample sizes)</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>Phase 3: Test the potential for transfer learning, further refine tools</dt><dd><ul>
+<li><p><strong>Goal 1</strong>: Develop instrument-agnostic meta/paradata format and test the potential for transfer learning to
+enable useful results earlier in the launch of a new survey</p></li>
+<li><p><strong>Goal 2</strong>: Support continued scaling of experimentation across more settings with easy, production-ready tools</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+</ul>
+<p>We are currently in Phase 1. See the “Examples” section below for early results.</p>
 </section>
-<section id="overview">
-<h2>Overview<a class="headerlink" href="#overview" title="Permalink to this heading"></a></h2>
+<section id="overview-of-python-package">
+<h2>Overview of Python package<a class="headerlink" href="#overview-of-python-package" title="Permalink to this heading"></a></h2>
 <p>The <code class="docutils literal notranslate"><span class="pre">ml4qc</span></code> package builds on the <a class="reference external" href="https://scikit-learn.org/">scikit-learn</a> toolset. It includes the following
 utility classes for working with survey data:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">SurveyML</span></code> provides core functionality, including preprocessing, outlier detection, and cluster analysis</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code> builds on <code class="docutils literal notranslate"><span class="pre">SurveyML</span></code>, adding support for running classification models and reporting out results</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code> builds on <code class="docutils literal notranslate"><span class="pre">SurveyML</span></code>, adding support for running classification models and reporting out
+results</p></li>
 </ul>
 <p>While <code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code> supports a variety of approaches, the currently-recommended
 approach to binary classification is as follows:</p>
@@ -122,15 +160,76 @@ default threshold of 0.5 is unlikely to be optimal. When in doubt, use
 <code class="docutils literal notranslate"><span class="pre">threshold='optimal_f'</span></code> to choose the threshold that maximizes the F-1 score.</p></li>
 </ol>
 <p>This is essentially the approach used in the examples linked below.</p>
+<p>When there are nonrandom aspects to interview assignment, it is also recommended to initialize <code class="docutils literal notranslate"><span class="pre">SurveyMLClassifier</span></code>
+with a list of <code class="docutils literal notranslate"><span class="pre">control_features</span></code> to control out as much of the nonrandom-assignment effects as possible. During
+pre-processing, <code class="docutils literal notranslate"><span class="pre">control_features</span></code> will be used in OLS regressions to predict each other feature value, and it will
+be the residuals that are used in further analysis. This can be particularly important in distinguishing enumerator
+effects from the effects of nonrandom assignment. See the <code class="docutils literal notranslate"><span class="pre">CAPI2</span></code> example linked below.</p>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Permalink to this heading"></a></h2>
 <p>This package is best illustrated by way of example. The following example analyses are available:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb">CATI1 analysis</a></p></li>
-<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb">CATI2 analysis</a></p></li>
-<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb">CAPI1 analysis</a></p></li>
-<li><p><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb">CAPI2 analysis</a></p></li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati1-example.ipynb">CATI1 analysis</a></dt><dd><ul>
+<li><p><strong>Setting</strong>: CATI survey in Afghanistan</p></li>
+<li><p><strong>Review and quality classification strategy</strong>: Holistic review of all submissions</p></li>
+<li><p><strong>Supervised results</strong>: Precision for predicting rejected submission ranges from 10% to 43% (against a base rate of
+3.8%)</p></li>
+<li><p><strong>Unsupervised results</strong>: Significant enumerator effects discovered and summarized</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati2-example.ipynb">CATI2 analysis</a></dt><dd><ul>
+<li><p><strong>Setting</strong>: CATI survey in Afghanistan</p></li>
+<li><p><strong>Review and quality classification strategy</strong>: Holistic review of all submissions</p></li>
+<li><p><strong>Supervised results</strong>: Precision for predicting rejected submission ranges from 20-50% (against a base rate of 4.7%),
+but wide variation due to very small training sample</p></li>
+<li><p><strong>Unsupervised results</strong>: Significant enumerator effects discovered and summarized, but not at cluster level</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-cati3-example.ipynb">CATI3 analysis</a></dt><dd><ul>
+<li><p><strong>Setting</strong>: CATI survey in Afghanistan</p></li>
+<li><p><strong>Review and quality classification strategy</strong>: All completed interviews classified the same, all incomplete
+interviews rejected</p></li>
+<li><p><strong>Supervised results</strong>: Because there are clear meta/paradata differences between complete and incomplete interviews,
+all ML models achieve 100% precision in predicting rejection</p></li>
+<li><p><strong>Unsupervised results</strong>: Very significant enumerator effects discovered and summarized</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi1-example.ipynb">CAPI1 analysis</a></dt><dd><ul>
+<li><p><strong>Setting</strong>: CAPI survey in Afghanistan</p></li>
+<li><p><strong>Review and quality classification strategy</strong>: Holistic review of all submissions</p></li>
+<li><p><strong>Supervised results</strong>: With only 5 rejected submissions, instead sought to predict “not approved as GOOD quality”
+with a base rate of 70% (resting almost completely on the distinction between a “GOOD” and an “OKAY” quality
+rating); none of the models succeed in predicting the distinction and it’s not clear that a larger sample size
+would help</p></li>
+<li><p><strong>Unsupervised results</strong>: Very significant enumerator effects discovered and summarized</p></li>
+</ul>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt><a class="reference external" href="https://github.com/orangechairlabs/ml4qc/blob/main/src/ml4qc-capi2-example.ipynb">CAPI2 analysis</a></dt><dd><ul>
+<li><p><strong>Setting</strong>: CAPI survey in Ethiopia</p></li>
+<li><p><strong>Review and quality classification strategy</strong>: Submissions flagged with automated statistical checks at the question
+level, plus randomly-selected interviews, reviewed for individual responses in need of correction; those that
+require correction classified as “OKAY” (vs. “GOOD”) quality</p></li>
+<li><p><strong>Supervised results</strong>: Full results still TBD, but predictive results poor overall, though slightly better with
+structural models (logistic regression and neural networks)</p></li>
+<li><p><strong>Unsupervised results</strong>: Very significant enumerator effects discovered and summarized, but not at cluster level</p></li>
+</ul>
+</dd>
+</dl>
+</li>
 </ul>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
@@ -139,6 +238,7 @@ default threshold of 0.5 is unlikely to be optimal. When in doubt, use
 <li class="toctree-l2"><a class="reference internal" href="ml4qc.html">ml4qc package</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="ml4qc.html#submodules">Submodules</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="ml4qc.surveyml.html">ml4qc.surveyml module</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="ml4qc.surveyml.html#ml4qc.surveyml.OLSControlTransformer"><code class="docutils literal notranslate"><span class="pre">OLSControlTransformer</span></code></a></li>
 <li class="toctree-l5"><a class="reference internal" href="ml4qc.surveyml.html#ml4qc.surveyml.SurveyML"><code class="docutils literal notranslate"><span class="pre">SurveyML</span></code></a></li>
 </ul>
 </li>

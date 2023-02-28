@@ -26,14 +26,17 @@ from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest
 from sklearn.linear_model import LogisticRegression
 from k_means_constrained import KMeansConstrained
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.linear_model import LinearRegression
 
 
 class SurveyML(object):
     """Base class for using machine learning techniques on survey data."""
 
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
-                 test_size: Union[float, int] = None, cv_when_training: bool = False, n_jobs: int = -2,
-                 random_state: Union[int, RandomState] = None, verbose: bool = None):
+                 test_size: Union[float, int] = None, cv_when_training: bool = False,
+                 control_features: list[str] = None, n_jobs: int = -2, random_state: Union[int, RandomState] = None,
+                 categorical_features: list[str] = None, verbose: bool = None):
         """
         Initialize survey data for machine learning.
 
@@ -48,11 +51,17 @@ class SurveyML(object):
         :type test_size: Union[float, int]
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
+        :param control_features: List of features that should be used as controls (to transform all other features into
+            their residuals, once variation from these features is controlled out via OLS)
+        :type control_features: list[str]
         :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
             leave one CPU free)
         :type n_jobs: int
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
         :type random_state: Union[int, RandomState]
+        :param categorical_features: List of feature names to force to categorical type ("other"), regardless of how
+            they auto-detect (e.g., for categorical features that might auto-classify as numeric), otherwise None
+        :type categorical_features: list[str]
         :param verbose: True to report verbose results with print() calls
         :type verbose: bool
         """
@@ -76,6 +85,7 @@ class SurveyML(object):
 
         self.test_size = test_size
         self.cv_when_training = cv_when_training
+        self.control_features = control_features
         self.n_jobs = n_jobs
         self.random_state = random_state
         self.verbose = verbose
@@ -86,14 +96,38 @@ class SurveyML(object):
         self.y_train_preprocessed = None
         self.x_predict_preprocessed = None
         self.y_predict_preprocessed = None
+        self.x_train_control_preprocessed = None
+        self.x_predict_control_preprocessed = None
         self.num_features = 0
         self.feature_names_preprocessed = None
 
-        # organize features by data type
-        self.features_by_type = self.columns_by_type(self.x_train_df)
+        # partition features from controls
+        if self.control_features is not None:
+            self.x_train_feature_df = self.x_train_df[
+                self.x_train_df.columns[~self.x_train_df.columns.isin(self.control_features)]
+            ]
+            self.x_train_control_df = self.x_train_df[
+                self.x_train_df.columns[self.x_train_df.columns.isin(self.control_features)]
+            ]
+            self.x_predict_feature_df = self.x_predict_df[
+                self.x_predict_df.columns[~self.x_predict_df.columns.isin(self.control_features)]
+            ]
+            self.x_predict_control_df = self.x_predict_df[
+                self.x_predict_df.columns[self.x_predict_df.columns.isin(self.control_features)]
+            ]
+        else:
+            self.x_train_feature_df = self.x_train_df
+            self.x_train_control_df = None
+            self.x_predict_feature_df = self.x_predict_df
+            self.x_predict_control_df = None
+
+        # organize features and controls by data type
+        self.features_by_type = self.columns_by_type(self.x_train_feature_df, categorical_features)
+        self.controls_by_type = self.columns_by_type(self.x_train_control_df, categorical_features)
         if self.verbose:
             for dtype in self.features_by_type:
                 print(f"{dtype} features: {len(self.features_by_type[dtype])}")
+                print(f"{dtype} controls: {len(self.controls_by_type[dtype])}")
 
         # raise exception on disallowed data types
         if len(self.features_by_type["datetime"]) > 0:
@@ -111,39 +145,105 @@ class SurveyML(object):
 
         # set up preprocessing pipeline
         if custom_pipeline is not None:
+            if self.x_train_control_df is not None:
+                raise ValueError("Can't specify custom_pipeline if object initialized with control_features.")
+
             self.preprocessing_pipeline = custom_pipeline
+            control_transformer = None
+            ols_transformer = None
             transformer = None
         else:
+            if self.x_train_control_df is not None:
+                # set up control preprocessing pipeline to one-hot encode categorical data
+                control_transformer = ColumnTransformer(
+                    [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                      self.controls_by_type["other"])], remainder='passthrough')
+
+                # set up OLS transformer to transform features into residuals, fitting both training and prediction
+                # models
+                ols_transformer = OLSControlTransformer(fit_for_each_transform=True)
+            else:
+                control_transformer = None
+                ols_transformer = None
+
+            # set up feature preprocessing pipeline
             if pca is not None:
                 # for dimensionality reduction: one-hot encode any categorical data, then scale everything
-                transformer = ColumnTransformer(
-                    [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-                      self.features_by_type["other"])], remainder='passthrough')
-                self.preprocessing_pipeline = Pipeline(steps=[
-                    ('transform', transformer),
-                    ('scale', skl.preprocessing.StandardScaler()),
-                    ('reduce', PCA(n_components=pca, svd_solver="full", random_state=self.random_state))
-                ])
+                # (and include OLS transformation into residuals before scaling, if appropriate)
+                if ols_transformer is not None:
+                    transformer = ColumnTransformer(
+                        [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                          self.features_by_type["other"])],
+                        remainder='passthrough')
+                    self.preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('ols', ols_transformer),
+                        ('scale', skl.preprocessing.StandardScaler()),
+                        ('reduce', PCA(n_components=pca, svd_solver="full", random_state=self.random_state))
+                    ])
+                else:
+                    transformer = ColumnTransformer(
+                        [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                          self.features_by_type["other"])],
+                        remainder='passthrough')
+                    self.preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('scale', skl.preprocessing.StandardScaler()),
+                        ('reduce', PCA(n_components=pca, svd_solver="full", random_state=self.random_state))
+                    ])
             else:
                 # for direct use: leave binary and unit-interval data as-is, rescale other numeric data,
                 #                 one-hot encode categorical data
-                transformer = ColumnTransformer(
-                    [('numeric_other', skl.preprocessing.MinMaxScaler(), self.features_by_type["numeric_other"]),
-                     ('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-                      self.features_by_type["other"])], remainder='passthrough')
+                # (and include OLS transformation into residuals, if appropriate)
+                if ols_transformer is not None:
+                    transformer = ColumnTransformer(
+                        [('numeric_other', skl.preprocessing.MinMaxScaler(), self.features_by_type["numeric_other"]),
+                         ('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                          self.features_by_type["other"])],
+                        remainder='passthrough')
 
-                self.preprocessing_pipeline = Pipeline(steps=[
-                    ('transform', transformer)
-                ])
+                    self.preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('ols', ols_transformer)
+                    ])
+                else:
+                    transformer = ColumnTransformer(
+                        [('numeric_other', skl.preprocessing.MinMaxScaler(), self.features_by_type["numeric_other"]),
+                         ('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                          self.features_by_type["other"])],
+                        remainder='passthrough')
+
+                    self.preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer)
+                    ])
 
         if self.verbose:
-            print(f"  Starting training set shape: {self.x_train_df.shape}")
-            print(f"Starting prediction set shape: {self.x_predict_df.shape}")
+            print(f"  Starting training set shape: {self.x_train_feature_df.shape}")
+            print(f"Starting prediction set shape: {self.x_predict_feature_df.shape}")
+            if ols_transformer is not None:
+                print(f"  Training controls set shape: {self.x_train_control_df.shape}")
+                print(f"Prediction controls set shape: {self.x_predict_control_df.shape}")
 
         # perform preprocessing
-        self.x_train_preprocessed = self.preprocessing_pipeline.fit_transform(self.x_train_df)
+        if ols_transformer is not None:
+            # if we are doing OLS transformation to residuals, transform controls and set transformer to use them
+            self.x_train_control_preprocessed = control_transformer.fit_transform(self.x_train_control_df)
+            self.x_predict_control_preprocessed = control_transformer.transform(self.x_predict_control_df)
+            ols_transformer.set_control_features(self.x_train_control_preprocessed)
+        # transform training features
+        self.x_train_preprocessed = self.preprocessing_pipeline.fit_transform(self.x_train_feature_df)
+        # set training y's
         self.y_train_preprocessed = self.y_train_df.values.ravel()
-        self.x_predict_preprocessed = self.preprocessing_pipeline.transform(self.x_predict_df)
+        if ols_transformer is not None:
+            # if we are doing OLS transformation to residuals, transform controls and set transformer to use them
+            # (but first save the R2 scores from the training set transformation)
+            ols_train_control_score = ols_transformer.control_score
+            ols_transformer.set_control_features(self.x_predict_control_preprocessed)
+        else:
+            ols_train_control_score = None
+        # transform prediction features
+        self.x_predict_preprocessed = self.preprocessing_pipeline.transform(self.x_predict_feature_df)
+        # set prediction y's, if we have them
         if self.y_predict_df is None:
             self.y_predict_preprocessed = None
         else:
@@ -160,6 +260,14 @@ class SurveyML(object):
         if self.verbose:
             print(f"     Final training set shape: {self.x_train_preprocessed.shape}")
             print(f"   Final prediction set shape: {self.x_predict_preprocessed.shape}")
+            if ols_transformer is not None:
+                print(f"  Training controls set shape: {self.x_train_control_preprocessed.shape}")
+                print(f"Prediction controls set shape: {self.x_predict_control_preprocessed.shape}")
+                # also report out basic stats on R2 scores for OLS transformations
+                print(f"         Training controls R2: max: {np.max(ols_train_control_score)}; "
+                      f"min: {np.min(ols_train_control_score)}; mean: {np.mean(ols_train_control_score)}")
+                print(f"  Prediction controls R2: max: {np.max(ols_transformer.control_score)}; "
+                      f"min: {np.min(ols_transformer.control_score)}; mean: {np.mean(ols_transformer.control_score)}")
 
     def identify_outliers(self, contamination: float = None) -> pd.DataFrame:
         """
@@ -171,18 +279,15 @@ class SurveyML(object):
         :rtype: pd.DataFrame
         """
 
-        # pool all data, one-hot encode categorical data, otherwise leave everything alone/unscaled
-        x_all_df = pd.concat([self.x_train_df, self.x_predict_df])
-        transformer = skl.compose.ColumnTransformer(
-            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-              self.features_by_type["other"])], remainder='passthrough')
-        x_all = transformer.fit_transform(x_all_df)
+        # preprocess all data
+        x_all, x_all_feature_df = self._preprocess_all_data(variance_to_retain=1.0, scale_all=False,
+                                                            indexes_to_drop=None)
 
         # identify outliers
         if_classifier = IsolationForest(contamination="auto" if contamination is None else contamination,
                                         random_state=self.random_state)
         outlier_df = pd.DataFrame(if_classifier.fit_predict(x_all) == -1,
-                                  columns=['is_outlier']).set_index(x_all_df.index.values)
+                                  columns=['is_outlier']).set_index(x_all_feature_df.index.values)
 
         # use 1 and 0 vs. True and False
         outlier_df["is_outlier"] = outlier_df["is_outlier"].astype(int)
@@ -233,37 +338,15 @@ class SurveyML(object):
             outliers_df = outliers_df[outliers_df.is_outlier == 1]
             outliers_df.rename(columns={'is_outlier': 'cluster'}, inplace=True)
             outliers_df.cluster = -1
+            outliers_indexes = outliers_df.index
         else:
             outliers_df = None
+            outliers_indexes = None
 
-        # prep feature DataFrame with all data to consider
-        x_all_df = pd.concat([self.x_train_df, self.x_predict_df])
-        if outliers_df is not None:
-            # if we're separating outliers, drop them from this dataset
-            x_all_df = x_all_df[~x_all_df.index.isin(outliers_df.index)]
-        x_len = len(x_all_df)
-
-        # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
-        transformer = ColumnTransformer(
-            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-              self.features_by_type["other"])], remainder='passthrough')
-        if variance_to_retain < 1.0:
-            preprocessing_pipeline = Pipeline(steps=[
-                ('transform', transformer),
-                ('scale', skl.preprocessing.StandardScaler()),
-                ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
-            ])
-        else:
-            preprocessing_pipeline = Pipeline(steps=[
-                ('transform', transformer),
-                ('scale', skl.preprocessing.StandardScaler())
-            ])
-        if self.verbose:
-            print(f"  Starting features shape: {x_all_df.shape}")
-        x_data = preprocessing_pipeline.fit_transform(x_all_df)
-        if self.verbose:
-            print(f"     Final features shape: {x_data.shape}")
-            print()
+        # preprocess all data
+        x_data, x_all_feature_df = self._preprocess_all_data(variance_to_retain=variance_to_retain, scale_all=True,
+                                                             indexes_to_drop=outliers_indexes)
+        x_len = len(x_all_feature_df)
 
         # generate clusters for range of n_clusters options, keeping best set of labels based on silhouette coefficient
         if self.verbose:
@@ -291,7 +374,7 @@ class SurveyML(object):
                 print(pd.DataFrame(labels).iloc[:, 0].value_counts())
 
         # take best set of cluster labels, and merge in outliers if they'd been separated
-        result_df = pd.DataFrame(best_labels, columns=['cluster']).set_index(x_all_df.index.values)
+        result_df = pd.DataFrame(best_labels, columns=['cluster']).set_index(x_all_feature_df.index.values)
         if outliers_df is not None:
             result_df = pd.concat([result_df, outliers_df])
 
@@ -413,33 +496,14 @@ class SurveyML(object):
         :rtype: (np.ndarray, np.ndarray)
         """
 
-        # prep feature DataFrame with all data, confirm our indexes match
-        x_all_df = pd.concat([self.x_train_df, self.x_predict_df]).sort_index()
-        if not np.array_equal(np.array(x_all_df.index), np.array(target_df.index)):
+        # preprocess all data
+        x_data, x_all_feature_df = self._preprocess_all_data(variance_to_retain=variance_to_retain, scale_all=True,
+                                                             indexes_to_drop=None)
+
+        # confirm that we have target data for the combined dataset
+        if not np.array_equal(np.array(x_all_feature_df.index), np.array(target_df.index)):
             raise ValueError("The category_df parameter must include all items in training and prediction DataFrames, "
                              "with the same index values.")
-
-        # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
-        transformer = ColumnTransformer(
-            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
-              self.features_by_type["other"])], remainder='passthrough')
-        if variance_to_retain < 1.0:
-            preprocessing_pipeline = Pipeline(steps=[
-                ('transform', transformer),
-                ('scale', skl.preprocessing.StandardScaler()),
-                ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
-            ])
-        else:
-            preprocessing_pipeline = Pipeline(steps=[
-                ('transform', transformer),
-                ('scale', skl.preprocessing.StandardScaler())
-            ])
-        if self.verbose:
-            print(f"  Starting features shape: {x_all_df.shape}")
-        x_data = preprocessing_pipeline.fit_transform(x_all_df)
-        if self.verbose:
-            print(f"     Final features shape: {x_data.shape}")
-            print()
 
         # fit simple K-nearest-neighbors model with K neighbors averaged by distance (where K includes oneself, so
         # effectively K-1 neighbors once self is weighted down to 0)
@@ -450,6 +514,97 @@ class SurveyML(object):
 
         # return predicted probabilities
         return classifier.predict(x_data), classifier.predict_proba(x_data)
+
+    def _preprocess_all_data(self, variance_to_retain: float = 1.0, scale_all: bool = True,
+                             indexes_to_drop: pd.Index = None) -> (np.ndarray, pd.DataFrame):
+        """
+        Preprocess combined training+prediction dataset.
+
+        :param variance_to_retain: Percent variance to retain, with value between 0 and 1 to use PCA for dimensionality
+            reduction and 1.0 to use all features
+        :type variance_to_retain: float
+        :param scale_all: Scale all features at end of preprocessing (implicit whenever variance_to_retain < 1.0)
+        :type scale_all: bool
+        :param indexes_to_drop: Indexes to drop from combined dataset (or None for none)
+        :type indexes_to_drop: pd.Index
+        :return: Preprocessed dataset and combined features DataFrame (pre-preprocessing), both sorted by index
+        :rtype: (np.ndarray, pd.DataFrame)
+        """
+
+        if self.x_train_control_df is not None:
+            # set up control preprocessing pipeline to one-hot encode categorical data
+            control_transformer = ColumnTransformer(
+                [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+                  self.controls_by_type["other"])], remainder='passthrough')
+
+            # set up OLS transformer to transform features into residuals
+            ols_transformer = OLSControlTransformer()
+        else:
+            control_transformer = None
+            ols_transformer = None
+
+        # prep feature DataFrame with all data, confirm our indexes match
+        x_all_feature_df = pd.concat([self.x_train_feature_df, self.x_predict_feature_df]).sort_index()
+        x_all_control_df = pd.concat([self.x_train_control_df, self.x_predict_control_df]).sort_index()
+        if indexes_to_drop is not None:
+            # if we're separating outliers, drop them from this dataset
+            x_all_feature_df = x_all_feature_df[~x_all_feature_df.index.isin(indexes_to_drop)]
+            x_all_control_df = x_all_control_df[~x_all_control_df.index.isin(indexes_to_drop)]
+
+        # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
+        # (and include OLS transformation into residuals before scaling, when appropriate)
+        transformer = ColumnTransformer(
+            [('categorical', skl.preprocessing.OneHotEncoder(handle_unknown='ignore'),
+              self.features_by_type["other"])], remainder='passthrough')
+        if variance_to_retain < 1.0:
+            if ols_transformer is not None:
+                preprocessing_pipeline = Pipeline(steps=[
+                    ('transform', transformer),
+                    ('ols', ols_transformer),
+                    ('scale', skl.preprocessing.StandardScaler()),
+                    ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
+                ])
+            else:
+                preprocessing_pipeline = Pipeline(steps=[
+                    ('transform', transformer),
+                    ('scale', skl.preprocessing.StandardScaler()),
+                    ('reduce', PCA(n_components=variance_to_retain, svd_solver="full", random_state=self.random_state))
+                ])
+        else:
+            if ols_transformer is not None:
+                if scale_all:
+                    preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('ols', ols_transformer),
+                        ('scale', skl.preprocessing.StandardScaler())
+                    ])
+                else:
+                    preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('ols', ols_transformer)
+                    ])
+            else:
+                if scale_all:
+                    preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer),
+                        ('scale', skl.preprocessing.StandardScaler())
+                    ])
+                else:
+                    preprocessing_pipeline = Pipeline(steps=[
+                        ('transform', transformer)
+                    ])
+        if self.verbose:
+            print(f"  Starting features shape: {x_all_feature_df.shape}")
+        if ols_transformer is not None:
+            # if we are doing OLS transformation to residuals, transform controls and set transformer to use them
+            x_all_control_preprocessed = control_transformer.fit_transform(x_all_control_df)
+            ols_transformer.set_control_features(x_all_control_preprocessed)
+        x_data = preprocessing_pipeline.fit_transform(x_all_feature_df)
+        if self.verbose:
+            print(f"     Final features shape: {x_data.shape}")
+            print()
+
+        return x_data, x_all_feature_df
 
     @staticmethod
     def inverse_distance_ignoring_closest(distances):
@@ -476,36 +631,50 @@ class SurveyML(object):
         weights = np.reciprocal(float_distances, out=float_distances, where=float_distances != 0.0)
         return weights
 
-    def features_by_type(self) -> dict:
+    def features_by_type(self, force_to_other: list[str] = None) -> dict:
         """
         Get features by data type.
 
+        :param force_to_other: List of feature names to force to "other" (e.g., for categorical features that might
+            auto-classify as numeric), otherwise None
+        :type force_to_other: list[str]
         :return: Dictionary with six lists of column names: "numeric", "numeric_binary", "numeric_unit_interval",
             "numeric_other", "datetime", "other"
         :rtype: dict
         """
 
-        return self.columns_by_type(self.x_train_df)
+        return self.columns_by_type(self.x_train_df, force_to_other)
 
     @staticmethod
-    def columns_by_type(df: pd.DataFrame) -> dict:
+    def columns_by_type(df: pd.DataFrame, force_to_other: list[str] = None) -> dict:
         """
         Get DataFrame columns by data type.
 
         :param df: DataFrame with columns to categorize
         :type df: pd.DataFrame
+        :param force_to_other: List of column names to force to "other" (e.g., for categorical columns that might
+            auto-classify as numeric), otherwise None
+        :type force_to_other: list[str]
         :return: Dictionary with six lists of column names: "numeric", "numeric_binary", "numeric_unit_interval",
             "numeric_other", "datetime", "other"
         :rtype: dict
         """
 
         # initialize our dict for return, with main column categories
-        cols_by_type = {"numeric": df.select_dtypes(include=['number']).columns.values,
+        cols_by_type = {"numeric": df.select_dtypes(include=['number']).columns.values.tolist(),
                         "numeric_binary": [],
                         "numeric_unit_interval": [],
                         "numeric_other": [],
-                        "datetime": df.select_dtypes(include=['datetime']).columns.values,
-                        "other": df.select_dtypes(exclude=['number', 'datetime']).columns.values}
+                        "datetime": df.select_dtypes(include=['datetime']).columns.values.tolist(),
+                        "other": df.select_dtypes(exclude=['number', 'datetime']).columns.values.tolist()}
+
+        # force-categorize selected columns as "other", if requested
+        if force_to_other is not None:
+            for col_type in ["numeric", "datetime"]:
+                for col in force_to_other:
+                    if col in cols_by_type[col_type]:
+                        cols_by_type[col_type].remove(col)
+                        cols_by_type["other"].append(col)
 
         # then add subcategories for numeric columns
         for col in cols_by_type["numeric"]:
@@ -517,3 +686,120 @@ class SurveyML(object):
                 cols_by_type["numeric_other"].append(col)
 
         return cols_by_type
+
+
+class OLSControlTransformer(BaseEstimator, TransformerMixin):
+    """OLS control transformer, for controlling out expected variation and transforming into residuals."""
+
+    def __init__(self, fit_for_each_transform: bool = False):
+        """
+        Initialize OLS control transformer.
+
+        :param fit_for_each_transform: True to fit model for each call to transform()
+        :type fit_for_each_transform: bool
+        """
+
+        self.fit_for_each_transform = fit_for_each_transform
+        self.x_controls_df = None
+        self.control_model = None
+        self.control_score = None
+
+    def set_control_features(self, x_controls_df: pd.DataFrame):
+        """
+        Set control features for OLS control transformer (must call before calling fit() or transform()).
+
+        :param x_controls_df: Pandas DataFrame with control features for each row
+        :type x_controls_df: pd.DataFrame
+        """
+
+        self.x_controls_df = x_controls_df
+
+    def fit(self, X, y=None):
+        """
+        Fit OLS control model by transforming features into their residuals, after controlling for expected variation.
+
+        :param X: Features to transform
+        :type X: Any
+        :param y: (Unused)
+        :type y: Any
+        :return: Estimator instance for transformation (self)
+        :rtype: Any
+        """
+
+        # ensure we weren't passed any y's
+        if y is not None:
+            raise ValueError("OLSControlTransformer does not support the y parameter.")
+
+        # ensure we have controls to work with
+        if self.x_controls_df is None:
+            raise ValueError("Must call set_control_features() before calling fit().")
+
+        # ensure that our feature and control rows appear to line up
+        if X.shape[0] != self.x_controls_df.shape[0]:
+            raise ValueError(f"Trying to fit featureset with {X.shape[0]} rows "
+                             f"using controls with {self.x_controls_df.shape[0]} rows. Number of rows must match.")
+
+        # fit model now, unless we're meant to fit for every transform() call
+        if not self.fit_for_each_transform:
+            self.__fit_model(X)
+
+        return self
+
+    def __fit_model(self, X):
+        """
+        Fit OLS control model by transforming features into their residuals, after controlling for expected variation.
+
+        :param X: Features to transform
+        :type X: Any
+        """
+
+        # fit a model for each feature
+        self.control_model = []
+        for feature_index in range(X.shape[1]):
+            self.control_model.append(LinearRegression())
+            self.control_model[feature_index].fit(self.x_controls_df, X[:, feature_index])
+
+    def transform(self, X, y=None):
+        """
+        Transform features into their residuals, after controlling for expected variation.
+
+        :param X: Features to transform
+        :type X: Any
+        :param y: (Unused)
+        :type y: Any
+        :return: Transformed features
+        :rtype: Any
+        """
+
+        # ensure we weren't passed any y's
+        if y is not None:
+            raise ValueError("OLSControlTransformer does not support the y parameter.")
+
+        # ensure we have controls to work with
+        if self.x_controls_df is None:
+            raise ValueError("Must call set_control_features() before calling transform().")
+
+        # ensure that our feature and control rows appear to line up
+        if X.shape[0] != self.x_controls_df.shape[0]:
+            raise ValueError(f"Trying to transform featureset with {X.shape[0]} rows "
+                             f"using controls with {self.x_controls_df.shape[0]} rows. Number of rows must match.")
+
+        # fit model now, if we're meant to fit for every transform() call
+        if self.fit_for_each_transform:
+            self.__fit_model(X)
+
+        # ensure that the number of features to transform matches with our fitted models
+        if X.shape[1] != len(self.control_model):
+            raise ValueError(f"Trying to transform {X.shape[1]} features "
+                             f"with model fitted for {len(self.control_model)} features. "
+                             f"Number of features must match.")
+
+        # transform each feature, recording the R2 score for each
+        self.control_score = []
+        for feature_index in range(X.shape[1]):
+            pred_x = self.control_model[feature_index].predict(self.x_controls_df)
+            self.control_score.append(skl.metrics.r2_score(X[:, feature_index], pred_x))
+            X[:, feature_index] = X[:, feature_index] - pred_x
+
+        # return transformed feature array
+        return X
