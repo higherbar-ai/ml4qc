@@ -19,7 +19,7 @@ with open('README.rst') as file:
 
 setup(
     name='ml4qc',
-    version='0.1.8',
+    version='0.1.9',
     packages=['ml4qc'],
     python_requires='>=3.7',
     install_requires=['pandas', 'numpy', 'scikit-learn', 'seaborn', 'matplotlib', 'tensorflow', 'importlib_metadata',

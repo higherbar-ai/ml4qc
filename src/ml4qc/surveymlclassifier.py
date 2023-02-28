@@ -29,9 +29,11 @@ class SurveyMLClassifier(SurveyML):
     """Class for using machine learning classification techniques on survey data."""
 
     def __init__(self, x_train_df: pd.DataFrame, y_train_df: pd.DataFrame, x_predict_df: pd.DataFrame = None,
-                 test_size: Union[float, int] = None, cv_when_training: bool = False, n_jobs: int = -2,
-                 random_state: Union[int, np.random.RandomState] = None, verbose: bool = None,
-                 calibration_method: str = None, threshold: str = 'default', threshold_value: float = None):
+                 test_size: Union[float, int] = None, cv_when_training: bool = False,
+                 control_features: list[str] = None, n_jobs: int = -2,
+                 random_state: Union[int, np.random.RandomState] = None, categorical_features: list[str] = None,
+                 verbose: bool = None, calibration_method: str = None, threshold: str = 'default',
+                 threshold_value: float = None):
         """
         Initialize survey data for classification using machine learning techniques.
 
@@ -46,11 +48,17 @@ class SurveyMLClassifier(SurveyML):
         :type test_size: Union[float, int]
         :param cv_when_training: True to cross-validate when training models
         :type cv_when_training: bool
+        :param control_features: List of features that should be used as controls (to transform all other features into
+            their residuals, once variation from these features is controlled out via OLS)
+        :type control_features: list[str]
         :param n_jobs: Number of parallel jobs to run during cross-validation (-1 for as many jobs as CPU's, -2 to
             leave one CPU free, etc.)
         :type n_jobs: int
         :param random_state: Fixed random state for reproducible results, otherwise None for random execution
         :type random_state: Union[int, np.random.RandomState]
+        :param categorical_features: List of feature names to force to categorical type ("other"), regardless of how
+            they auto-detect (e.g., for categorical features that might auto-classify as numeric), otherwise None
+        :type categorical_features: list[str]
         :param verbose: True to report verbose results with print() calls
         :type verbose: bool
         :param calibration_method: 'isotonic' or 'sigmoid' to perform probability calibration, otherwise None
@@ -71,7 +79,8 @@ class SurveyMLClassifier(SurveyML):
 
         # initialize base class first
         super().__init__(x_train_df=x_train_df, y_train_df=y_train_df, x_predict_df=x_predict_df, test_size=test_size,
-                         cv_when_training=cv_when_training, n_jobs=n_jobs, random_state=random_state, verbose=verbose)
+                         cv_when_training=cv_when_training, control_features=control_features, n_jobs=n_jobs,
+                         random_state=random_state, categorical_features=categorical_features, verbose=verbose)
 
         # confirm that we're set up for binary classification problems (the only problems currently supported)
         unique_vals = self.y_train_df.iloc[:, 0].unique()
