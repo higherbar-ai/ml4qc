@@ -128,7 +128,8 @@ This package is best illustrated by way of example. The following example analys
       require correction classified as "OKAY" (vs. "GOOD") quality
     * **Supervised results**: Full results still TBD, but predictive results poor overall, though slightly better with
       structural models (logistic regression and neural networks)
-    * **Unsupervised results**: Very significant enumerator effects discovered and summarized, but not at cluster level
+    * **Unsupervised results**: Once many of the effects of nonrandom assignment are controlled out, there are only
+      weak enumerator effects at the cluster level
 
 Documentation
 -------------
