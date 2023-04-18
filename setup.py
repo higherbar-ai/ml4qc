@@ -1,4 +1,4 @@
-#  Copyright (c) 2022 Orange Chair Labs LLC
+#  Copyright (c) 2023 Orange Chair Labs LLC
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ with open('README.rst') as file:
 
 setup(
     name='ml4qc',
-    version='0.1.9',
+    version='0.1.10',
     packages=['ml4qc'],
     python_requires='>=3.7',
     install_requires=['pandas', 'numpy', 'scikit-learn', 'seaborn', 'matplotlib', 'tensorflow', 'importlib_metadata',

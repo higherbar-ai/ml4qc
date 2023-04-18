@@ -14,9 +14,9 @@ sys.path.insert(0, os.path.abspath('../../src'))
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'ml4qc'
-copyright = '2022, Orange Chair Labs LLC'
+copyright = '2023, Orange Chair Labs LLC'
 author = 'Orange Chair Labs LLC'
-release = '0.1.9'
+release = '0.1.10'
 
 
 # -- General configuration ---------------------------------------------------
