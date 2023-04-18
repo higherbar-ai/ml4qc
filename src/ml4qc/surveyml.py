@@ -1,4 +1,4 @@
-#  Copyright (c) 2022 Orange Chair Labs LLC
+#  Copyright (c) 2023 Orange Chair Labs LLC
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -123,11 +123,15 @@ class SurveyML(object):
 
         # organize features and controls by data type
         self.features_by_type = self.columns_by_type(self.x_train_feature_df, categorical_features)
-        self.controls_by_type = self.columns_by_type(self.x_train_control_df, categorical_features)
+        if self.x_train_control_df is not None:
+            self.controls_by_type = self.columns_by_type(self.x_train_control_df, categorical_features)
+        else:
+            self.controls_by_type = None
         if self.verbose:
             for dtype in self.features_by_type:
                 print(f"{dtype} features: {len(self.features_by_type[dtype])}")
-                print(f"{dtype} controls: {len(self.controls_by_type[dtype])}")
+                if self.controls_by_type is not None:
+                    print(f"{dtype} controls: {len(self.controls_by_type[dtype])}")
 
         # raise exception on disallowed data types
         if len(self.features_by_type["datetime"]) > 0:
@@ -545,11 +549,15 @@ class SurveyML(object):
 
         # prep feature DataFrame with all data, confirm our indexes match
         x_all_feature_df = pd.concat([self.x_train_feature_df, self.x_predict_feature_df]).sort_index()
-        x_all_control_df = pd.concat([self.x_train_control_df, self.x_predict_control_df]).sort_index()
+        if self.x_train_control_df is not None:
+            x_all_control_df = pd.concat([self.x_train_control_df, self.x_predict_control_df]).sort_index()
+        else:
+            x_all_control_df = None
         if indexes_to_drop is not None:
             # if we're separating outliers, drop them from this dataset
             x_all_feature_df = x_all_feature_df[~x_all_feature_df.index.isin(indexes_to_drop)]
-            x_all_control_df = x_all_control_df[~x_all_control_df.index.isin(indexes_to_drop)]
+            if self.x_train_control_df is not None:
+                x_all_control_df = x_all_control_df[~x_all_control_df.index.isin(indexes_to_drop)]
 
         # preprocess data: one-hot encode any categorical data, scale everything, and possibly use PCA to reduce
         # (and include OLS transformation into residuals before scaling, when appropriate)
