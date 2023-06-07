@@ -126,10 +126,9 @@ This package is best illustrated by way of example. The following example analys
     * **Review and quality classification strategy**: Submissions flagged with automated statistical checks at the question
       level, plus randomly-selected interviews, reviewed for individual responses in need of correction; those that
       require correction classified as "OKAY" (vs. "GOOD") quality
-    * **Supervised results**: Full results still TBD, but predictive results poor overall, though slightly better with
-      structural models (logistic regression and neural networks)
-    * **Unsupervised results**: Once many of the effects of nonrandom assignment are controlled out, there are only
-      weak enumerator effects at the cluster level
+    * **Supervised results**: Essentially no predictive power with any of the models
+    * **Unsupervised results**: Even once many of the effects of nonrandom assignment are controlled out, there appear
+      to be enumerator effects at the cluster as well as individual level
 
 Documentation
 -------------
