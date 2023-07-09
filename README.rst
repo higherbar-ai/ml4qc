@@ -129,6 +129,9 @@ This package is best illustrated by way of example. The following example analys
     * **Supervised results**: Essentially no predictive power with any of the models
     * **Unsupervised results**: Even once many of the effects of nonrandom assignment are controlled out, there appear
       to be enumerator effects at the cluster as well as individual level
+* `IPA analysis <https://github.com/PovertyAction/SCTO-ML>`_
+    * **External repository**: Innovations for Poverty Action has an external repository where they are exploring these methods
+      with their own datasets
 
 Documentation
 -------------
